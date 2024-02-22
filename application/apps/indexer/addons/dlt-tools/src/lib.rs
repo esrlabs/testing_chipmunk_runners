@@ -110,6 +110,7 @@ pub fn extract_dlt_ft(
     Ok(result)
 }
 
+#[allow(clippy::get_first)]
 #[cfg(test)]
 mod tests {
     use parsers::dlt::attachment::{FileExtractor, TempDir};

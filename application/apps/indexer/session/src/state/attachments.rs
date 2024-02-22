@@ -84,7 +84,7 @@ fn get_valid_file_path(dest: &Path, origin: &str) -> Result<PathBuf, io::Error> 
 impl AttachmentInfo {
     pub fn from(
         origin: parsers::Attachment,
-        store_folder: &PathBuf,
+        store_folder: &Path,
     ) -> Result<AttachmentInfo, AttachmentsError> {
         if !store_folder.exists() {
             create_dir(store_folder).map_err(AttachmentsError::Io)?;
