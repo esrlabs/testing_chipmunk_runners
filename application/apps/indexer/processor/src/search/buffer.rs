@@ -38,6 +38,6 @@ impl ReaderPolicy for CancallableMinBuffered {
     }
 
     fn is_paused(&mut self) -> bool {
-        self.0 .1.is_cancelled()
+        self.0.1.is_cancelled()
     }
 }

@@ -136,7 +136,7 @@ pub async fn process(command: Command, signal: Signal) {
             tx.send(regex::get_filter_error(filter, signal)).is_err()
         }
         Command::Checksum(file, tx) => tx.send(checksum::checksum(&file, signal)).is_err(),
-        Command::GetDltStats(files, tx) => tx.send(dlt::stats(files, signal)).is_err(),
+        Command::GetDltStats(files, tx) => tx.send(dlt::stats(files, signal).await).is_err(),
         Command::GetSomeipStatistic(files, tx) => {
             tx.send(get_someip_statistic(files, signal)).is_err()
         }

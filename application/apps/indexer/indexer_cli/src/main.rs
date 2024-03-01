@@ -1283,7 +1283,8 @@ pub async fn main() -> Result<()> {
                 }
             };
 
-            let res = collect_dlt_stats(file_path);
+            let token = CancellationToken::new();
+            let res = collect_dlt_stats(file_path, token);
             match res {
                 Ok(res) => {
                     trace!("got item...");

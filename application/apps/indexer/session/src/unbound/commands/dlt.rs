@@ -2,30 +2,42 @@ use super::CommandOutcome;
 use crate::{events::ComputationError, unbound::signal::Signal};
 use dlt_core::statistics::{collect_dlt_stats, StatisticInfo};
 use std::path::Path;
+use tokio::select;
 
-pub fn stats(
+pub async fn stats(
     files: Vec<String>,
-    _signal: Signal,
+    signal: Signal,
 ) -> Result<CommandOutcome<String>, ComputationError> {
-    let mut stat = StatisticInfo::new();
-    let mut error: Option<String> = None;
-    files.iter().for_each(|file| {
-        if error.is_some() {
-            return;
+    select! {
+        _ = signal.cancelled() => {
+            Ok(CommandOutcome::Cancelled)
         }
-        match collect_dlt_stats(Path::new(&file)) {
-            Ok(res) => {
-                stat.merge(res);
+        res = async {
+            let mut stat = StatisticInfo::new();
+            let mut error: Option<String> = None;
+            files.iter().for_each(|file| {
+                if error.is_some() {
+                    return;
+                }
+                match collect_dlt_stats(Path::new(&file), signal.token()) {
+                    Ok(res) => {
+                        stat.merge(res);
+                    }
+                    Err(err) => {
+                        error = Some(err.to_string());
+                    }
+                }
+            });
+            if let Some(err) = error {
+                Err(ComputationError::IoOperation(err))
+            } else {
+                match serde_json::to_string(&stat) {
+                    Ok(res) => Ok(CommandOutcome::Finished(res)),
+                    Err(err) => Err(ComputationError::IoOperation(err.to_string())),
+                }
             }
-            Err(err) => {
-                error = Some(err.to_string());
-            }
+        } => {
+            res
         }
-    });
-    if let Some(err) = error {
-        return Err(ComputationError::IoOperation(err));
     }
-    Ok(CommandOutcome::Finished(
-        serde_json::to_string(&stat).map_err(|e| ComputationError::IoOperation(e.to_string()))?,
-    ))
 }
