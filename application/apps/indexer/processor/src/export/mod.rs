@@ -19,6 +19,31 @@ pub enum ExportError {
     Cancelled,
 }
 
+fn write_raw<T, W: Write>(
+    item: ParseYield<T>,
+    w: &mut W,
+    text_file: bool,
+) -> Result<bool, ExportError>
+where
+    T: LogMessage + Sized,
+{
+    let written = match item {
+        ParseYield::Message(msg) => {
+            msg.to_writer(w)?;
+            true
+        }
+        ParseYield::MessageAndAttachment((msg, _)) => {
+            msg.to_writer(w)?;
+            true
+        }
+        _ => false,
+    };
+    if written && text_file {
+        w.write_all("\n".as_bytes())?;
+    }
+    Ok(written)
+}
+
 /// Exporting data as raw into a given destination. Would be exported only data
 /// defined in selections as indexes of rows (messages).
 ///
@@ -75,20 +100,10 @@ where
                 return Err(ExportError::Cancelled);
             }
             let written = match item {
-                MessageStreamItem::Item(ParseYield::Message(msg)) => {
-                    msg.to_writer(&mut out_writer)?;
-                    true
-                }
-                MessageStreamItem::Item(ParseYield::MessageAndAttachment((msg, _))) => {
-                    msg.to_writer(&mut out_writer)?;
-                    true
-                }
+                MessageStreamItem::Item(item) => write_raw(item, &mut out_writer, text_file)?,
                 MessageStreamItem::Done => break,
                 _ => false,
             };
-            if written && text_file {
-                out_writer.write_all("\n".as_bytes())?;
-            }
             if written {
                 exported += 1;
             }
@@ -96,15 +111,18 @@ where
         return Ok(exported);
     }
 
+    // export only sections
     while let Some((_, item)) = s.next().await {
         if cancel.is_cancelled() {
             return Err(ExportError::Cancelled);
         }
         if !inside {
             if sections[section_index].first_line == current_index {
+                // we just entered a section
                 inside = true;
             }
         } else if sections[section_index].last_line < current_index {
+            // we just left a section
             inside = false;
             section_index += 1;
             if sections.len() <= section_index {
@@ -114,25 +132,15 @@ where
                 }
                 break;
             }
-            // check if we are in next section again
+            // check if we already are in next section again
             if sections[section_index].first_line == current_index {
                 inside = true;
             }
         }
-        let written = match item {
-            MessageStreamItem::Item(ParseYield::Message(msg)) => {
-                if inside {
-                    msg.to_writer(&mut out_writer)?;
-                }
+        let _ = match item {
+            MessageStreamItem::Item(item) => {
                 current_index += 1;
-                inside
-            }
-            MessageStreamItem::Item(ParseYield::MessageAndAttachment((msg, _))) => {
-                if inside {
-                    msg.to_writer(&mut out_writer)?;
-                }
-                current_index += 1;
-                inside
+                inside && write_raw(item, &mut out_writer, text_file)?
             }
             MessageStreamItem::Done => {
                 debug!("No more messages to export");
@@ -140,8 +148,8 @@ where
             }
             _ => false,
         };
-        if written && text_file {
-            out_writer.write_all("\n".as_bytes())?;
+        if inside {
+            current_index += 1;
         }
     }
     if read_to_end {
@@ -162,6 +170,43 @@ where
     }
     debug!("export_raw done ({current_index} messages)");
     Ok(current_index)
+}
+
+struct SectionTracker<'a> {
+    current_index: usize,
+    sections: &'a Vec<IndexSection>,
+}
+
+impl<'a> SectionTracker<'a> {
+    fn inside(&self) -> bool {
+        true
+    }
+
+    fn advance(&mut self) {
+        self.current_index += 1;
+
+        if !inside {
+            if sections[section_index].first_line == current_index {
+                // we just entered a section
+                inside = true;
+            }
+        } else if sections[section_index].last_line < current_index {
+            // we just left a section
+            inside = false;
+            section_index += 1;
+            if sections.len() <= section_index {
+                // no more sections
+                if matches!(item, MessageStreamItem::Item(_)) {
+                    current_index += 1;
+                }
+                break;
+            }
+            // check if we already are in next section again
+            if sections[section_index].first_line == current_index {
+                inside = true;
+            }
+        }
+    }
 }
 
 fn sections_valid(sections: &[IndexSection]) -> bool {
