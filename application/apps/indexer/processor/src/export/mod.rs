@@ -111,12 +111,14 @@ where
         return Ok(exported);
     }
 
+    let mut section_tracker = SectionTracker::new(sections);
     // export only sections
     while let Some((_, item)) = s.next().await {
         if cancel.is_cancelled() {
             return Err(ExportError::Cancelled);
         }
-        if !inside {
+        section_tracker.advance();
+        if !section_tracker.inside() {
             if sections[section_index].first_line == current_index {
                 // we just entered a section
                 inside = true;
@@ -174,36 +176,43 @@ where
 
 struct SectionTracker<'a> {
     current_index: usize,
-    sections: &'a Vec<IndexSection>,
+    section_index: usize,
+    sections: &'a [IndexSection],
+    inside: bool,
 }
 
 impl<'a> SectionTracker<'a> {
+    fn new(sections: &'a [IndexSection]) -> Self {
+        SectionTracker {
+            current_index: 0,
+            section_index: 0,
+            sections,
+            inside: false,
+        }
+    }
+
     fn inside(&self) -> bool {
-        true
+        self.inside
     }
 
     fn advance(&mut self) {
         self.current_index += 1;
 
-        if !inside {
-            if sections[section_index].first_line == current_index {
+        if !self.inside {
+            if self.sections[self.section_index].first_line == self.current_index {
                 // we just entered a section
-                inside = true;
+                self.inside = true;
             }
-        } else if sections[section_index].last_line < current_index {
+        } else if self.sections[self.section_index].last_line < self.current_index {
             // we just left a section
-            inside = false;
-            section_index += 1;
-            if sections.len() <= section_index {
-                // no more sections
-                if matches!(item, MessageStreamItem::Item(_)) {
-                    current_index += 1;
+            self.inside = false;
+            self.section_index += 1;
+            if self.sections.len() > self.section_index {
+                // we have more sections
+                // check if we already are in next section again
+                if self.sections[self.section_index].first_line == self.current_index {
+                    self.inside = true;
                 }
-                break;
-            }
-            // check if we already are in next section again
-            if sections[section_index].first_line == current_index {
-                inside = true;
             }
         }
     }
