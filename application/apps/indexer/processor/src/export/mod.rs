@@ -117,41 +117,18 @@ where
         if cancel.is_cancelled() {
             return Err(ExportError::Cancelled);
         }
-        section_tracker.advance();
-        if !section_tracker.inside() {
-            if sections[section_index].first_line == current_index {
-                // we just entered a section
-                inside = true;
-            }
-        } else if sections[section_index].last_line < current_index {
-            // we just left a section
-            inside = false;
-            section_index += 1;
-            if sections.len() <= section_index {
-                // no more sections
-                if matches!(item, MessageStreamItem::Item(_)) {
-                    current_index += 1;
-                }
-                break;
-            }
-            // check if we already are in next section again
-            if sections[section_index].first_line == current_index {
-                inside = true;
-            }
-        }
-        let _ = match item {
+        match item {
             MessageStreamItem::Item(item) => {
-                current_index += 1;
-                inside && write_raw(item, &mut out_writer, text_file)?
+                if section_tracker.inside() {
+                    write_raw(item, &mut out_writer, text_file)?;
+                };
+                section_tracker.advance();
             }
             MessageStreamItem::Done => {
                 debug!("No more messages to export");
                 break;
             }
-            _ => false,
-        };
-        if inside {
-            current_index += 1;
+            _ => {}
         }
     }
     if read_to_end {
@@ -183,16 +160,27 @@ struct SectionTracker<'a> {
 
 impl<'a> SectionTracker<'a> {
     fn new(sections: &'a [IndexSection]) -> Self {
+        let inside = matches!(
+            sections.first(),
+            Some(IndexSection {
+                first_line: 0,
+                last_line: _,
+            })
+        );
         SectionTracker {
             current_index: 0,
             section_index: 0,
             sections,
-            inside: false,
+            inside,
         }
     }
 
     fn inside(&self) -> bool {
         self.inside
+    }
+
+    fn current_index(&self) -> usize {
+        self.current_index
     }
 
     fn advance(&mut self) {
@@ -227,6 +215,38 @@ fn sections_valid(sections: &[IndexSection]) -> bool {
         }
     }
     sections.iter().all(|s| s.first_line <= s.last_line)
+}
+
+#[test]
+fn test_section_tracker() {
+    let sections = vec![
+        IndexSection {
+            first_line: 0,
+            last_line: 2,
+        },
+        IndexSection {
+            first_line: 3,
+            last_line: 3,
+        },
+        IndexSection {
+            first_line: 4,
+            last_line: 4,
+        },
+    ];
+    let mut section_tracker = SectionTracker::new(&sections);
+    assert!(section_tracker.inside()); // 0
+    assert_eq!(section_tracker.current_index(), 0);
+    section_tracker.advance();
+    assert!(section_tracker.inside()); // 1
+    assert_eq!(section_tracker.current_index(), 1);
+    section_tracker.advance();
+    assert!(section_tracker.inside()); // 2
+    section_tracker.advance();
+    assert!(section_tracker.inside()); // 3
+    section_tracker.advance();
+    assert!(section_tracker.inside()); // 4
+    section_tracker.advance();
+    assert!(!section_tracker.inside()); // 5
 }
 
 #[test]
