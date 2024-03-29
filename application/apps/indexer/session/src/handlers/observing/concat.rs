@@ -15,7 +15,7 @@ use std::{fs::File, path::PathBuf};
 
 #[allow(clippy::type_complexity)]
 pub async fn concat_files(
-    operation_api: OperationAPI,
+    operation_api: &OperationAPI,
     state: SessionStateAPI,
     files: &[(String, FileFormat, PathBuf)],
     parser: &ParserType,
@@ -47,7 +47,7 @@ pub async fn concat_files(
         match file_type {
             FileFormat::Binary => {
                 super::run_source(
-                    operation_api.clone(),
+                    operation_api,
                     state.clone(),
                     BinaryByteSource::new(input_file),
                     source_id,
@@ -59,7 +59,7 @@ pub async fn concat_files(
             }
             FileFormat::PcapLegacy => {
                 super::run_source(
-                    operation_api.clone(),
+                    operation_api,
                     state.clone(),
                     PcapLegacyByteSource::new(input_file)?,
                     source_id,
@@ -71,7 +71,7 @@ pub async fn concat_files(
             }
             FileFormat::PcapNG => {
                 super::run_source(
-                    operation_api.clone(),
+                    operation_api,
                     state.clone(),
                     PcapngByteSource::new(input_file)?,
                     source_id,
@@ -83,7 +83,7 @@ pub async fn concat_files(
             }
             FileFormat::Text => {
                 super::run_source(
-                    operation_api.clone(),
+                    operation_api,
                     state.clone(),
                     BinaryByteSource::new(input_file),
                     source_id,

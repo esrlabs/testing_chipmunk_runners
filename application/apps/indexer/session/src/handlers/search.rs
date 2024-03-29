@@ -1,9 +1,10 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
-    operations::{OperationAPI, OperationResult},
+    operations::{OperationAPI, OperationInterface, OperationResult},
     progress::Severity,
     state::SessionStateAPI,
 };
+use async_trait::async_trait;
 use log::debug;
 use processor::{
     map::{FilterMatch, FiltersStats},
@@ -27,11 +28,27 @@ type SearchResultChannel = (
     Receiver<(RegularSearchHolder, searchers::regular::SearchResults)>,
 );
 
+struct SearchOperation {
+    filters: Vec<SearchFilter>,
+}
+
+#[async_trait]
+impl OperationInterface for SearchOperation {
+    type Output = u64;
+    async fn execute(
+        self,
+        operation_api: &OperationAPI,
+        state_api: &SessionStateAPI,
+    ) -> OperationResult<Self::Output> {
+        execute_search(operation_api, &self.filters, state_api).await
+    }
+}
+
 #[allow(clippy::type_complexity)]
 pub async fn execute_search(
     operation_api: &OperationAPI,
-    filters: Vec<SearchFilter>,
-    state: SessionStateAPI,
+    filters: &Vec<SearchFilter>,
+    state: &SessionStateAPI,
 ) -> OperationResult<u64> {
     debug!("RUST: Search operation is requested");
     state.drop_search().await?;

@@ -20,7 +20,7 @@ use tokio::{
 
 #[allow(clippy::type_complexity)]
 pub async fn observe_file<'a>(
-    operation_api: OperationAPI,
+    operation_api: &OperationAPI,
     state: SessionStateAPI,
     uuid: &str,
     file_format: &FileFormat,

@@ -5,6 +5,7 @@ use crate::{
     state::SessionStateAPI,
     tracker::OperationTrackerAPI,
 };
+use async_trait::async_trait;
 use log::{debug, error, warn};
 use merging::merger::FileMergeOptions;
 use processor::search::filter::SearchFilter;
@@ -64,6 +65,17 @@ impl OperationStat {
             self.duration = timestamp - self.started;
         }
     }
+}
+
+#[async_trait]
+pub trait OperationInterface {
+    type Output;
+
+    async fn execute(
+        self,
+        operation_api: &OperationAPI,
+        state_api: &SessionStateAPI,
+    ) -> OperationResult<Self::Output>;
 }
 
 #[derive(Debug)]
@@ -294,15 +306,14 @@ impl OperationAPI {
             match operation.kind {
                 OperationKind::Observe(options) => {
                     api.finish(
-                        handlers::observe::start_observing(api.clone(), state, options, rx_sde)
-                            .await,
+                        handlers::observe::start_observing(&api, state, options, rx_sde).await,
                         operation_str,
                     )
                     .await;
                 }
                 OperationKind::Search { filters } => {
                     api.finish(
-                        handlers::search::execute_search(&api, filters, state).await,
+                        handlers::search::execute_search(&api, &filters, &state).await,
                         operation_str,
                     )
                     .await;
@@ -345,7 +356,7 @@ impl OperationAPI {
                         return;
                     };
                     api.finish(
-                        handlers::extract::handle(&session_file, filters.iter()),
+                        handlers::extract::handle(&session_file, filters),
                         operation_str,
                     )
                     .await;

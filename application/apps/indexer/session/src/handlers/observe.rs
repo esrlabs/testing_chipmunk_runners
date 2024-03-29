@@ -12,7 +12,7 @@ use sources::{
 };
 
 pub async fn start_observing(
-    operation_api: OperationAPI,
+    operation_api: &OperationAPI,
     state: SessionStateAPI,
     mut options: ObserveOptions,
     rx_sde: Option<SdeReceiver>,

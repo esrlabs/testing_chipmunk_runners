@@ -52,17 +52,10 @@ pub struct MatchesExtractor {
 }
 
 impl MatchesExtractor {
-    pub fn new<'a, I>(path: &Path, filters: I) -> Self
-    where
-        I: Iterator<Item = &'a SearchFilter>,
-    {
-        let mut search_filters = vec![];
-        for filter in filters {
-            search_filters.push(filter.clone());
-        }
+    pub fn new(path: &Path, filters: Vec<SearchFilter>) -> Self {
         Self {
             file_path: PathBuf::from(path),
-            filters: search_filters,
+            filters,
         }
     }
 

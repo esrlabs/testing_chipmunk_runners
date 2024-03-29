@@ -14,7 +14,7 @@ use sources::{
 };
 
 pub async fn observe_stream<'a>(
-    operation_api: OperationAPI,
+    operation_api: &OperationAPI,
     state: SessionStateAPI,
     uuid: &str,
     transport: &Transport,
