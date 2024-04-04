@@ -1,12 +1,10 @@
 use crate::{
     events::{CallbackEvent, ComputationError},
-    operations,
-    operations::Operation,
+    handlers::export_raw::ExportOperation,
+    operations::{self, Operation, OperationInterface},
     progress::Severity,
-    state,
-    state::{AttachmentInfo, GrabbedElement, IndexesMode, SessionStateAPI, SourceDefinition},
-    tracker,
-    tracker::OperationTrackerAPI,
+    state::{self, AttachmentInfo, GrabbedElement, IndexesMode, SessionStateAPI, SourceDefinition},
+    tracker::{self, OperationTrackerAPI},
 };
 use futures::Future;
 use log::{debug, error, warn};
@@ -32,7 +30,7 @@ pub const SHUTDOWN_TIMEOUT_IN_MS: u64 = 2000;
 
 pub struct Session {
     uuid: Uuid,
-    tx_operations: UnboundedSender<Operation>,
+    tx_operations: UnboundedSender<(Operation, Box<dyn OperationInterface<Output = >)>,
     destroyed: CancellationToken,
     destroying: CancellationToken,
     pub state: SessionStateAPI,
@@ -109,13 +107,13 @@ impl Session {
                             &tx_operations,
                             &destroying,
                             "state",
-                            state::run(rx_state_api, tx_callback_events_state)
+                            state::run(rx_state_api, tx_callback_events.clone())
                         ),
                         Self::run(
                             &tx_operations,
                             &destroying,
                             "tracker",
-                            tracker::run(state_api.clone(), rx_tracker_api)
+                            tracker::run(rx_tracker_api)
                         ),
                     );
                     destroyed.cancel();
@@ -252,6 +250,8 @@ impl Session {
             .map_err(ComputationError::NativeError)
     }
 
+    // will start an operation with `operation_id` to abort the operation
+    // with id `target`
     pub fn abort(&self, operation_id: Uuid, target: Uuid) -> Result<(), ComputationError> {
         self.tx_operations
             .send(Operation::new(
@@ -360,6 +360,7 @@ impl Session {
         out_path: PathBuf,
         ranges: Vec<RangeInclusive<u64>>,
     ) -> Result<(), ComputationError> {
+        let op = ExportOperation::new(out_path, ranges);
         self.tx_operations
             .send(Operation::new(
                 operation_id,

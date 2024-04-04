@@ -26,7 +26,6 @@ pub enum TrackerCommand {
             String,
             Option<SdeSender>,
             CancellationToken,
-            CancellationToken,
             oneshot::Sender<bool>,
         ),
     ),
@@ -98,12 +97,11 @@ impl OperationTrackerAPI {
         uuid: Uuid,
         name: String,
         tx_sde: Option<SdeSender>,
-        canceler: CancellationToken,
         done: CancellationToken,
     ) -> Result<bool, NativeError> {
         let (tx, rx) = oneshot::channel();
         self.exec_operation(
-            TrackerCommand::AddOperation((uuid, name, tx_sde, canceler, done, tx)),
+            TrackerCommand::AddOperation((uuid, name, tx_sde, done, tx)),
             rx,
         )
         .await
@@ -162,10 +160,7 @@ impl OperationTrackerAPI {
     }
 }
 
-pub async fn run(
-    state: SessionStateAPI,
-    mut rx_api: UnboundedReceiver<TrackerCommand>,
-) -> Result<(), NativeError> {
+pub async fn run(mut rx_api: UnboundedReceiver<TrackerCommand>) -> Result<(), NativeError> {
     let mut tracker = OperationTracker {
         operations: HashMap::new(),
         stat: vec![],
@@ -175,14 +170,7 @@ pub async fn run(
     debug!("task is started");
     while let Some(msg) = rx_api.recv().await {
         match msg {
-            TrackerCommand::AddOperation((
-                uuid,
-                name,
-                tx_sde,
-                cancalation_token,
-                done_token,
-                tx_response,
-            )) => {
+            TrackerCommand::AddOperation((uuid, name, tx_sde, done_token, tx_response)) => {
                 if tracker.debug {
                     tracker
                         .stat
@@ -206,12 +194,6 @@ pub async fn run(
                 }
             }
             TrackerCommand::RemoveOperation((uuid, tx_response)) => {
-                if let Err(err) = state.canceled_operation(uuid).await {
-                    error!(
-                        "fail to notify state about canceled operation {}; err: {:?}",
-                        uuid, err
-                    );
-                }
                 if tracker.debug {
                     let str_uuid = uuid.to_string();
                     if let Some(index) = tracker.stat.iter().position(|op| op.uuid == str_uuid) {
@@ -231,12 +213,6 @@ pub async fn run(
                 }
             }
             TrackerCommand::CancelOperation((uuid, tx_response)) => {
-                if let Err(err) = state.canceling_operation(uuid).await {
-                    error!(
-                        "Failed to notify state about cancelation operation {}; err: {:?}",
-                        uuid, err
-                    );
-                }
                 tx_response
                     .send(
                         if let Some((_tx_sde, operation_cancalation_token, done_token)) =
@@ -247,12 +223,6 @@ pub async fn run(
                                 debug!("Waiting for operation {} would confirm done-state", uuid);
                                 done_token.cancelled().await;
                                 progress.stopped(&uuid);
-                            }
-                            if let Err(err) = state.canceled_operation(uuid).await {
-                                error!(
-                                    "Failed to notify state about canceled operation {}; err: {:?}",
-                                    uuid, err
-                                );
                             }
                             true
                         } else {

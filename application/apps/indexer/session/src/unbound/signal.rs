@@ -8,9 +8,9 @@ pub struct Signal {
 }
 
 impl Signal {
-    pub fn new(alias: String) -> Signal {
+    pub fn new<S: Into<String>>(alias: S) -> Signal {
         Signal {
-            alias,
+            alias: alias.into(),
             signal: CancellationToken::new(),
             confirmation: CancellationToken::new(),
         }

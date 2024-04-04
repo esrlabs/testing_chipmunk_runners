@@ -3,6 +3,7 @@ use crate::{
     operations::{OperationAPI, OperationInterface, OperationResult},
     progress::Severity,
     state::SessionStateAPI,
+    unbound::signal::Signal,
 };
 use async_trait::async_trait;
 use log::debug;
@@ -30,17 +31,22 @@ type SearchResultChannel = (
 
 struct SearchOperation {
     filters: Vec<SearchFilter>,
+    signal: Signal,
 }
 
 #[async_trait]
 impl OperationInterface for SearchOperation {
     type Output = u64;
     async fn execute(
-        self,
+        &self,
         operation_api: &OperationAPI,
         state_api: &SessionStateAPI,
     ) -> OperationResult<Self::Output> {
         execute_search(operation_api, &self.filters, state_api).await
+    }
+
+    fn get_signal(&self) -> Signal {
+        self.signal.clone()
     }
 }
 

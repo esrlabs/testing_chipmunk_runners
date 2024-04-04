@@ -1,9 +1,11 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
-    operations::OperationResult,
+    operations::{OperationAPI, OperationInterface, OperationResult},
     progress::Severity,
     state::SessionStateAPI,
+    unbound::signal::Signal,
 };
+use async_trait::async_trait;
 use indexer_base::config::IndexSection;
 use log::debug;
 use parsers::{
@@ -28,9 +30,41 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 
+pub(crate) struct ExportOperation {
+    out_path: PathBuf,
+    ranges: Vec<std::ops::RangeInclusive<u64>>,
+    signal: Signal,
+}
+
+impl ExportOperation {
+    pub fn new(out_path: PathBuf, ranges: Vec<std::ops::RangeInclusive<u64>>) -> Self {
+        Self {
+            out_path,
+            ranges,
+            signal: Signal::new("ExportOperation"),
+        }
+    }
+}
+
+#[async_trait]
+impl OperationInterface for ExportOperation {
+    type Output = bool;
+    async fn execute(
+        &self,
+        _: &OperationAPI,
+        state_api: &SessionStateAPI,
+    ) -> OperationResult<Self::Output> {
+        execute_export(&self.signal.token(), state_api, self.out_path, self.ranges).await
+    }
+
+    fn get_signal(&self) -> Signal {
+        self.signal.clone()
+    }
+}
+
 pub async fn execute_export(
     cancel: &CancellationToken,
-    state: SessionStateAPI,
+    state: &SessionStateAPI,
     out_path: PathBuf,
     ranges: Vec<std::ops::RangeInclusive<u64>>,
 ) -> OperationResult<bool> {

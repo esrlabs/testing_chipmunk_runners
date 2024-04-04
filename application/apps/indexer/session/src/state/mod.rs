@@ -32,6 +32,7 @@ pub(crate) mod values;
 pub use api::{Api, SessionStateAPI};
 pub use attachments::{AttachmentInfo, Attachments};
 pub use indexes::{
+    // FIXME rename controller -> indexes
     controller::{Controller as Indexes, Mode as IndexesMode},
     frame::Frame,
     map::Map,
@@ -51,6 +52,7 @@ pub enum Status {
 
 #[derive(Debug)]
 pub struct SessionState {
+    // FIXME do not expose fields as pub
     pub session_file: SessionFile,
     pub observed: Observed,
     pub search_map: SearchMap,
@@ -58,7 +60,6 @@ pub struct SessionState {
     pub values: Values,
     pub searchers: Searchers,
     pub attachments: Attachments,
-    pub cancelling_operations: HashMap<Uuid, bool>,
     pub status: Status,
     pub debug: bool,
 }
@@ -77,7 +78,6 @@ impl SessionState {
             indexes: Indexes::new(Some(tx_callback_events.clone())),
             values: Values::new(Some(tx_callback_events)),
             status: Status::Open,
-            cancelling_operations: HashMap::new(),
             debug: false,
         }
     }
@@ -701,12 +701,6 @@ pub async fn run(
                         "fail to response to Api::SetDebugMode",
                     ));
                 }
-            }
-            Api::NotifyCancelingOperation(uuid) => {
-                state.cancelling_operations.insert(uuid, true);
-            }
-            Api::NotifyCanceledOperation(uuid) => {
-                state.cancelling_operations.remove(&uuid);
             }
             Api::AddAttachment(attachment) => {
                 state.handle_add_attachment(attachment, tx_callback_events.clone())?;

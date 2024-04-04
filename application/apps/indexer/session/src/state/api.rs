@@ -143,8 +143,6 @@ pub enum Api {
     GetIndexedRanges(oneshot::Sender<Vec<RangeInclusive<u64>>>),
     CloseSession(oneshot::Sender<()>),
     SetDebugMode((bool, oneshot::Sender<()>)),
-    NotifyCancelingOperation(Uuid),
-    NotifyCanceledOperation(Uuid),
     AddAttachment(parsers::Attachment),
     GetAttachments(oneshot::Sender<Vec<AttachmentInfo>>),
     // Used for tests of error handeling
@@ -199,8 +197,6 @@ impl Display for Api {
                 Self::GetIndexedRanges(_) => "GetIndexedRanges",
                 Self::CloseSession(_) => "CloseSession",
                 Self::SetDebugMode(_) => "SetDebugMode",
-                Self::NotifyCancelingOperation(_) => "NotifyCancelingOperation",
-                Self::NotifyCanceledOperation(_) => "NotifyCanceledOperation",
                 Self::AddAttachment(_) => "AddAttachment",
                 Self::GetAttachments(_) => "GetAttachments",
                 Self::Shutdown => "Shutdown",
@@ -482,26 +478,6 @@ impl SessionStateAPI {
         let (tx, rx) = oneshot::channel();
         self.exec_operation(Api::SetMatches((matches, stats, tx)), rx)
             .await
-    }
-
-    pub async fn canceling_operation(&self, uuid: Uuid) -> Result<(), NativeError> {
-        self.tx_api
-            .send(Api::NotifyCancelingOperation(uuid))
-            .map_err(|e| {
-                NativeError::channel(&format!(
-                    "fail to send to Api::NotifyCancelingOperation; error: {e}",
-                ))
-            })
-    }
-
-    pub async fn canceled_operation(&self, uuid: Uuid) -> Result<(), NativeError> {
-        self.tx_api
-            .send(Api::NotifyCanceledOperation(uuid))
-            .map_err(|e| {
-                NativeError::channel(&format!(
-                    "Failed to send to Api::NotifyCanceledOperation; error: {e}",
-                ))
-            })
     }
 
     pub async fn get_search_values_holder(

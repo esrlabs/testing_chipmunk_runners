@@ -3,6 +3,7 @@ use crate::{
     operations::{OperationAPI, OperationInterface, OperationResult},
     progress::Severity,
     state::SessionStateAPI,
+    unbound::signal::Signal,
 };
 use async_trait::async_trait;
 
@@ -15,13 +16,23 @@ use std::path::{Path, PathBuf};
 struct ExtractOperation {
     target_file_path: PathBuf,
     filters: Vec<SearchFilter>,
+    signal: Signal,
 }
 
 #[async_trait]
 impl OperationInterface for ExtractOperation {
     type Output = Vec<ExtractedMatchValue>;
-    async fn execute(self, _: &OperationAPI, _: &SessionStateAPI) -> OperationResult<Self::Output> {
+
+    async fn execute(
+        &self,
+        _: &OperationAPI,
+        state_api: &SessionStateAPI,
+    ) -> OperationResult<Self::Output> {
         handle(&self.target_file_path, self.filters)
+    }
+
+    fn get_signal(&self) -> Signal {
+        self.signal.clone()
     }
 }
 

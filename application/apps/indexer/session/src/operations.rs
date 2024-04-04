@@ -4,6 +4,7 @@ use crate::{
     progress::Severity,
     state::SessionStateAPI,
     tracker::OperationTrackerAPI,
+    unbound::signal::Signal,
 };
 use async_trait::async_trait;
 use log::{debug, error, warn};
@@ -72,10 +73,16 @@ pub trait OperationInterface {
     type Output;
 
     async fn execute(
-        self,
+        &self,
         operation_api: &OperationAPI,
         state_api: &SessionStateAPI,
     ) -> OperationResult<Self::Output>;
+
+    fn get_signal(&self) -> Signal;
+}
+enum MyOperationInterfaces {
+    Observe(Box<dyn OperationInterface<Output = i32> + Send>),
+    Search(Box<dyn OperationInterface<Output = String> + Send>),
 }
 
 #[derive(Debug)]
@@ -269,9 +276,10 @@ impl OperationAPI {
         self.cancellation_token.clone()
     }
 
-    pub async fn execute(
+    pub async fn spawn_op(
         &self,
         operation: Operation,
+        op: impl OperationInterface,
         tx_sde: Option<SdeSender>,
         rx_sde: Option<SdeReceiver>,
     ) -> Result<(), NativeError> {
@@ -281,7 +289,6 @@ impl OperationAPI {
                 self.id(),
                 operation.kind.to_string(),
                 tx_sde,
-                self.cancellation_token(),
                 self.done_token(),
             )
             .await?;
@@ -339,7 +346,7 @@ impl OperationAPI {
                     api.finish(
                         handlers::export_raw::execute_export(
                             &api.cancellation_token(),
-                            state,
+                            &state,
                             out_path,
                             ranges,
                         )
@@ -460,30 +467,33 @@ pub fn uuid_from_str(operation_id: &str) -> Result<Uuid, ComputationError> {
     }
 }
 
-pub async fn run(
-    mut rx_operations: UnboundedReceiver<Operation>,
+pub async fn run<T: OperationInterface>(
+    mut rx_operations: UnboundedReceiver<(Operation, T)>,
     state_api: SessionStateAPI,
     tracker_api: OperationTrackerAPI,
     tx_callback_events: UnboundedSender<CallbackEvent>,
 ) {
     debug!("task is started");
     while let Some(operation) = rx_operations.recv().await {
-        if !matches!(operation.kind, OperationKind::End) {
+        if !matches!(operation.0.kind, OperationKind::End) {
             let operation_api = OperationAPI::new(
                 state_api.clone(),
                 tracker_api.clone(),
                 tx_callback_events.clone(),
-                operation.id,
+                operation.0.id,
                 CancellationToken::new(),
             );
             let (tx_sde, rx_sde): (Option<SdeSender>, Option<SdeReceiver>) =
-                if matches!(operation.kind, OperationKind::Observe(..)) {
+                if matches!(operation.0.kind, OperationKind::Observe(..)) {
                     let (tx_sde, rx_sde): (SdeSender, SdeReceiver) = unbounded_channel();
                     (Some(tx_sde), Some(rx_sde))
                 } else {
                     (None, None)
                 };
-            if let Err(err) = operation_api.execute(operation, tx_sde, rx_sde).await {
+            if let Err(err) = operation_api
+                .spawn_op(operation.0, operation.1, tx_sde, rx_sde)
+                .await
+            {
                 operation_api.emit(CallbackEvent::OperationError {
                     uuid: operation_api.id(),
                     error: err,

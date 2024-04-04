@@ -1,6 +1,6 @@
 pub mod api;
 pub mod commands;
-mod signal;
+pub mod signal;
 
 use crate::{
     events::ComputationError,
