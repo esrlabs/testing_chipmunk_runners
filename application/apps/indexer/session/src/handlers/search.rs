@@ -1,6 +1,6 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
-    operations::{OperationAPI, OperationInterface, OperationResult},
+    operations::{OperationAPI, OperationInterface, OperationResult, Serializable},
     progress::Severity,
     state::SessionStateAPI,
     unbound::signal::Signal,
@@ -36,13 +36,13 @@ struct SearchOperation {
 
 #[async_trait]
 impl OperationInterface for SearchOperation {
-    type Output = u64;
     async fn execute(
         &self,
         operation_api: &OperationAPI,
         state_api: &SessionStateAPI,
-    ) -> OperationResult<Self::Output> {
-        execute_search(operation_api, &self.filters, state_api).await
+    ) -> OperationResult<Box<dyn Serializable>> {
+        let res = execute_search(operation_api, &self.filters, state_api).await?;
+        Ok(res)
     }
 
     fn get_signal(&self) -> Signal {

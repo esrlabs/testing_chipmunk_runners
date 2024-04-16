@@ -20,6 +20,7 @@ use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tokio::select;
 
 use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
@@ -68,21 +69,31 @@ impl OperationStat {
     }
 }
 
-#[async_trait]
-pub trait OperationInterface {
-    type Output;
+pub(crate) trait Serializable {
+    fn serialize(&self) -> String;
+}
 
+impl Serializable for bool {
+    fn serialize(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+}
+
+impl Serializable for String {
+    fn serialize(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+}
+
+#[async_trait]
+pub trait OperationInterface: Send {
     async fn execute(
         &self,
         operation_api: &OperationAPI,
         state_api: &SessionStateAPI,
-    ) -> OperationResult<Self::Output>;
+    ) -> OperationResult<Box<dyn Serializable>>;
 
     fn get_signal(&self) -> Signal;
-}
-enum MyOperationInterfaces {
-    Observe(Box<dyn OperationInterface<Output = i32> + Send>),
-    Search(Box<dyn OperationInterface<Output = String> + Send>),
 }
 
 #[derive(Debug)]
@@ -279,7 +290,7 @@ impl OperationAPI {
     pub async fn spawn_op(
         &self,
         operation: Operation,
-        op: impl OperationInterface,
+        op: Box<dyn OperationInterface + Send>,
         tx_sde: Option<SdeSender>,
         rx_sde: Option<SdeReceiver>,
     ) -> Result<(), NativeError> {
@@ -299,8 +310,10 @@ impl OperationAPI {
                 message: Some(format!("Operation {} already exists", self.id())),
             });
         }
-        let api = self.clone();
+        let operation_api = self.clone();
         let state = self.state_api.clone();
+        let api_clone = operation_api.clone();
+        let state_clone = state.clone();
         let tracker = self.tracker_api.clone();
         let session_file = if matches!(operation.kind, OperationKind::Extract { .. }) {
             Some(state.get_session_file().await?)
@@ -308,52 +321,77 @@ impl OperationAPI {
             None
         };
         spawn(async move {
-            api.started();
+            let res = op.execute(&api_clone, &state_clone).await;
+        });
+        spawn(async move {
+            operation_api.started();
+
             let operation_str = &format!("{}", operation.kind);
             match operation.kind {
                 OperationKind::Observe(options) => {
-                    api.finish(
-                        handlers::observe::start_observing(&api, state, options, rx_sde).await,
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            handlers::observe::start_observing(
+                                &operation_api,
+                                &state,
+                                options,
+                                rx_sde,
+                            )
+                            .await,
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::Search { filters } => {
-                    api.finish(
-                        handlers::search::execute_search(&api, &filters, &state).await,
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            handlers::search::execute_search(&operation_api, &filters, &state)
+                                .await,
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::SearchValues { filters } => {
-                    api.finish(
-                        handlers::search_values::execute_value_search(&api, filters, state).await,
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            handlers::search_values::execute_value_search(
+                                &operation_api,
+                                filters,
+                                state,
+                            )
+                            .await,
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::Export { out_path, ranges } => {
-                    api.finish(
-                        Ok(state
-                            .export_session(out_path, ranges, api.cancellation_token())
-                            .await
-                            .ok()),
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            Ok(state
+                                .export_session(
+                                    out_path,
+                                    ranges,
+                                    operation_api.cancellation_token(),
+                                )
+                                .await
+                                .ok()),
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::ExportRaw { out_path, ranges } => {
-                    api.finish(
-                        handlers::export_raw::execute_export(
-                            &api.cancellation_token(),
-                            &state,
-                            out_path,
-                            ranges,
+                    operation_api
+                        .finish(
+                            handlers::export_raw::execute_export(
+                                &operation_api.cancellation_token(),
+                                &state,
+                                out_path,
+                                ranges,
+                            )
+                            .await,
+                            operation_str,
                         )
-                        .await,
-                        operation_str,
-                    )
-                    .await;
+                        .await;
                 }
                 OperationKind::Extract { filters } => {
                     let session_file = if let Some(session_file) = session_file {
@@ -362,19 +400,21 @@ impl OperationAPI {
                         warn!("Fail to call OperationKind::Extract: no session file");
                         return;
                     };
-                    api.finish(
-                        handlers::extract::handle(&session_file, filters),
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            handlers::extract::handle(&session_file, filters),
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::Map { dataset_len, range } => {
                     match state.get_scaled_map(dataset_len, range).await {
                         Ok(map) => {
-                            api.finish(Ok(Some(map)), operation_str).await;
+                            operation_api.finish(Ok(Some(map)), operation_str).await;
                         }
                         Err(err) => {
-                            api.finish::<OperationResult<()>>(Err(err), operation_str)
+                            operation_api
+                                .finish::<OperationResult<()>>(Err(err), operation_str)
                                 .await;
                         }
                     }
@@ -382,10 +422,11 @@ impl OperationAPI {
                 OperationKind::Values { dataset_len, range } => {
                     match state.get_search_values(range, dataset_len).await {
                         Ok(map) => {
-                            api.finish(Ok(Some(map)), operation_str).await;
+                            operation_api.finish(Ok(Some(map)), operation_str).await;
                         }
                         Err(err) => {
-                            api.finish::<OperationResult<()>>(Err(err), operation_str)
+                            operation_api
+                                .finish::<OperationResult<()>>(Err(err), operation_str)
                                 .await;
                         }
                     }
@@ -399,52 +440,57 @@ impl OperationAPI {
                     unimplemented!("merging not yet supported");
                 }
                 OperationKind::Sleep(ms, ignore_cancellation) => {
-                    api.finish(
-                        handlers::sleep::handle(&api, ms, ignore_cancellation).await,
-                        operation_str,
-                    )
-                    .await;
+                    operation_api
+                        .finish(
+                            handlers::sleep::handle(&operation_api, ms, ignore_cancellation).await,
+                            operation_str,
+                        )
+                        .await;
                 }
                 OperationKind::Cancel { target } => match tracker.cancel_operation(target).await {
                     Ok(canceled) => {
                         if canceled {
-                            api.finish::<OperationResult<()>>(Ok(None), operation_str)
+                            operation_api
+                                .finish::<OperationResult<()>>(Ok(None), operation_str)
                                 .await;
                         } else {
-                            api.finish::<OperationResult<()>>(
+                            operation_api
+                                .finish::<OperationResult<()>>(
+                                    Err(NativeError {
+                                        severity: Severity::WARNING,
+                                        kind: NativeErrorKind::Io,
+                                        message: Some(format!(
+                                        "Fail to cancel operation {target}; operation isn't found"
+                                    )),
+                                    }),
+                                    operation_str,
+                                )
+                                .await;
+                        }
+                    }
+                    Err(err) => {
+                        operation_api
+                            .finish::<OperationResult<()>>(
                                 Err(NativeError {
                                     severity: Severity::WARNING,
                                     kind: NativeErrorKind::Io,
                                     message: Some(format!(
-                                        "Fail to cancel operation {target}; operation isn't found"
+                                        "Fail to cancel operation {target}; error: {err:?}"
                                     )),
                                 }),
                                 operation_str,
                             )
                             .await;
-                        }
-                    }
-                    Err(err) => {
-                        api.finish::<OperationResult<()>>(
-                            Err(NativeError {
-                                severity: Severity::WARNING,
-                                kind: NativeErrorKind::Io,
-                                message: Some(format!(
-                                    "Fail to cancel operation {target}; error: {err:?}"
-                                )),
-                            }),
-                            operation_str,
-                        )
-                        .await;
                     }
                 },
                 OperationKind::GetNearestPosition(position) => {
                     match state.get_nearest_position(position).await {
                         Ok(nearest) => {
-                            api.finish(Ok(nearest), operation_str).await;
+                            operation_api.finish(Ok(nearest), operation_str).await;
                         }
                         Err(err) => {
-                            api.finish::<OperationResult<()>>(Err(err), operation_str)
+                            operation_api
+                                .finish::<OperationResult<()>>(Err(err), operation_str)
                                 .await;
                         }
                     }
@@ -467,43 +513,58 @@ pub fn uuid_from_str(operation_id: &str) -> Result<Uuid, ComputationError> {
     }
 }
 
-pub async fn run<T: OperationInterface>(
-    mut rx_operations: UnboundedReceiver<(Operation, T)>,
+pub async fn run(
+    mut rx_operations: UnboundedReceiver<(Operation, Box<dyn OperationInterface + Send>)>,
     state_api: SessionStateAPI,
     tracker_api: OperationTrackerAPI,
     tx_callback_events: UnboundedSender<CallbackEvent>,
+    cancel: CancellationToken,
 ) {
     debug!("task is started");
-    while let Some(operation) = rx_operations.recv().await {
-        if !matches!(operation.0.kind, OperationKind::End) {
-            let operation_api = OperationAPI::new(
-                state_api.clone(),
-                tracker_api.clone(),
-                tx_callback_events.clone(),
-                operation.0.id,
-                CancellationToken::new(),
-            );
-            let (tx_sde, rx_sde): (Option<SdeSender>, Option<SdeReceiver>) =
-                if matches!(operation.0.kind, OperationKind::Observe(..)) {
-                    let (tx_sde, rx_sde): (SdeSender, SdeReceiver) = unbounded_channel();
-                    (Some(tx_sde), Some(rx_sde))
+    loop {
+        let _ = select! {
+            op = rx_operations.recv() => {
+                if let Some(operation) = op {
+                    let operation_api = OperationAPI::new(
+                        state_api.clone(),
+                        tracker_api.clone(),
+                        tx_callback_events.clone(),
+                        operation.0.id,
+                        CancellationToken::new(),
+                    );
+                    let (tx_sde, rx_sde): (Option<SdeSender>, Option<SdeReceiver>) =
+                        if matches!(operation.0.kind, OperationKind::Observe(..)) {
+                            let (tx_sde, rx_sde): (SdeSender, SdeReceiver) = unbounded_channel();
+                            (Some(tx_sde), Some(rx_sde))
+                        } else {
+                            (None, None)
+                        };
+                    if let Err(err) = operation_api
+                        .spawn_op(operation.0, operation.1, tx_sde, rx_sde)
+                        .await
+                    {
+                        operation_api.emit(CallbackEvent::OperationError {
+                            uuid: operation_api.id(),
+                            error: err,
+                        });
+                    }
                 } else {
-                    (None, None)
-                };
-            if let Err(err) = operation_api
-                .spawn_op(operation.0, operation.1, tx_sde, rx_sde)
-                .await
-            {
-                operation_api.emit(CallbackEvent::OperationError {
-                    uuid: operation_api.id(),
-                    error: err,
-                });
-            }
-        } else {
-            debug!("session closing is requested");
-            break;
-        }
+                    break;
+                }
+            },
+            _ = cancel.cancelled() => {
+                debug!("session closing is requested");
+                break;
+            },
+        };
     }
+    // while let Some(operation) = rx_operations.recv().await {
+    //     if !matches!(operation.0.kind, OperationKind::End) {
+    //     } else {
+    //         debug!("session closing is requested");
+    //         break;
+    //     }
+    // }
     if let Err(err) = state_api.close_session().await {
         error!("Failed to close session: {:?}", err);
     }

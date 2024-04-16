@@ -1,19 +1,58 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
     handlers::observing,
-    operations::{OperationAPI, OperationResult},
+    operations::{OperationAPI, OperationInterface, OperationResult, Serializable},
     progress::Severity,
     state::SessionStateAPI,
+    unbound::signal::Signal,
 };
+use async_trait::async_trait;
 use log::error;
 use sources::{
     factory::{ObserveOptions, ObserveOrigin, ParserType},
     producer::SdeReceiver,
 };
 
+struct ObserveOperation {
+    observe_options: ObserveOptions,
+    rx_sde: Option<SdeReceiver>,
+    signal: Signal,
+}
+
+#[async_trait]
+impl OperationInterface for ObserveOperation {
+    async fn execute(
+        &self,
+        operation_api: &OperationAPI,
+        state_api: &SessionStateAPI,
+    ) -> OperationResult<Box<dyn Serializable>> {
+        let res =
+            start_observing(operation_api, state_api, self.observe_options, self.rx_sde).await?;
+
+        Ok(match serde_json::to_string(&res) {
+            Ok(r) => Some(Box::new(r)),
+            Err(e) => None,
+        })
+    }
+
+    fn get_signal(&self) -> Signal {
+        self.signal.clone()
+    }
+}
+
+impl ObserveOperation {
+    pub fn new(observe_options: ObserveOptions, rx_sde: Option<SdeReceiver>) -> Self {
+        Self {
+            observe_options,
+            rx_sde,
+            signal: Signal::new("ObserveOperation"),
+        }
+    }
+}
+
 pub async fn start_observing(
     operation_api: &OperationAPI,
-    state: SessionStateAPI,
+    state: &SessionStateAPI,
     mut options: ObserveOptions,
     rx_sde: Option<SdeReceiver>,
 ) -> OperationResult<()> {
@@ -30,6 +69,7 @@ pub async fn start_observing(
                 state.get_session_file_origin().await?,
             );
             match session_file_origin {
+                // FIXME: this error should not be possible, prevent with type system
                 Some(origin) if origin.is_linked() => Err(NativeError {
                     severity: Severity::ERROR,
                     kind: NativeErrorKind::Configuration,

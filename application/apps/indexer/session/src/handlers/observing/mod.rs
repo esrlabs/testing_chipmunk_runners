@@ -38,7 +38,7 @@ pub const FLUSH_TIMEOUT_IN_MS: u128 = 500;
 
 pub async fn run_source<S: ByteSource>(
     operation_api: &OperationAPI,
-    state: SessionStateAPI,
+    state: &SessionStateAPI,
     source: S,
     source_id: u16,
     parser: &ParserType,
@@ -76,7 +76,7 @@ pub async fn run_source<S: ByteSource>(
 
 async fn run_producer<T: LogMessage, P: Parser<T>, S: ByteSource>(
     operation_api: &OperationAPI,
-    state: SessionStateAPI,
+    state: &SessionStateAPI,
     source_id: u16,
     mut producer: MessageProducer<T, P, S>,
     mut rx_tail: Option<Receiver<Result<(), tail::Error>>>,

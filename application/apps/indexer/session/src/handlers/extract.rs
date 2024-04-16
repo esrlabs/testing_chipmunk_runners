@@ -1,6 +1,6 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
-    operations::{OperationAPI, OperationInterface, OperationResult},
+    operations::{OperationAPI, OperationInterface, OperationResult, Serializable},
     progress::Severity,
     state::SessionStateAPI,
     unbound::signal::Signal,
@@ -21,14 +21,16 @@ struct ExtractOperation {
 
 #[async_trait]
 impl OperationInterface for ExtractOperation {
-    type Output = Vec<ExtractedMatchValue>;
-
     async fn execute(
         &self,
         _: &OperationAPI,
         state_api: &SessionStateAPI,
-    ) -> OperationResult<Self::Output> {
-        handle(&self.target_file_path, self.filters)
+    ) -> OperationResult<Box<dyn Serializable>> {
+        let res = handle(&self.target_file_path, self.filters)?;
+        Ok(match serde_json::to_string(&res) {
+            Ok(r) => Some(Box::new(r)),
+            Err(e) => None,
+        })
     }
 
     fn get_signal(&self) -> Signal {

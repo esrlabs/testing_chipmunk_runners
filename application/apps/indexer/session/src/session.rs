@@ -24,17 +24,21 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-pub type OperationsChannel = (UnboundedSender<Operation>, UnboundedReceiver<Operation>);
+pub type OperationsChannel = (
+    UnboundedSender<(Operation, Box<dyn OperationInterface + Send>)>,
+    UnboundedReceiver<(Operation, Box<dyn OperationInterface + Send>)>,
+);
 
 pub const SHUTDOWN_TIMEOUT_IN_MS: u64 = 2000;
 
 pub struct Session {
     uuid: Uuid,
-    tx_operations: UnboundedSender<(Operation, Box<dyn OperationInterface<Output = >)>,
+    tx_operations: UnboundedSender<(Operation, Box<dyn OperationInterface + Send>)>,
     destroyed: CancellationToken,
     destroying: CancellationToken,
     pub state: SessionStateAPI,
     pub tracker: OperationTrackerAPI,
+    cancel_operations: CancellationToken,
 }
 
 impl Session {
@@ -63,6 +67,7 @@ impl Session {
             destroying: CancellationToken::new(),
             state: state_api.clone(),
             tracker: tracker_api.clone(),
+            cancel_operations: CancellationToken::new(),
         };
         let destroyed = session.destroyed.clone();
         let destroying = session.destroying.clone();
@@ -76,7 +81,6 @@ impl Session {
                 }
             };
             debug!("Session is started");
-            let tx_callback_events_state = tx_callback_events.clone();
             join!(
                 async {
                     destroying.cancelled().await;
@@ -102,6 +106,7 @@ impl Session {
                             state_api.clone(),
                             tracker_api.clone(),
                             tx_callback_events.clone(),
+                            session.cancel_operations.clone(),
                         ),
                         Self::run(
                             &tx_operations,
@@ -130,7 +135,7 @@ impl Session {
     }
 
     async fn run(
-        tx_operations: &UnboundedSender<Operation>,
+        tx_operations: &UnboundedSender<(Operation, Box<dyn OperationInterface + Send>)>,
         destroying: &CancellationToken,
         name: &str,
         f: impl Future<Output = Result<(), crate::events::NativeError>> + Send + 'static,
@@ -294,27 +299,27 @@ impl Session {
     }
 
     pub(crate) async fn send_stop_signal(
-        operation_id: Uuid,
-        tx_operations: &UnboundedSender<Operation>,
         destroyed: Option<&CancellationToken>,
         destroying: &CancellationToken,
+        cancel_operation: &CancellationToken,
     ) -> Result<(), ComputationError> {
         destroying.cancel();
-        tx_operations
-            .send(Operation::new(operation_id, operations::OperationKind::End))
-            .map_err(|e| ComputationError::Communication(e.to_string()))?;
+
+        cancel_operation.cancel();
+        // tx_operations
+        //     .send(Operation::new(operation_id, operations::OperationKind::End))
+        //     .map_err(|e| ComputationError::Communication(e.to_string()))?;
         if let Some(destroyed) = destroyed {
             destroyed.cancelled().await;
         }
         Ok(())
     }
 
-    pub async fn stop(&self, operation_id: Uuid) -> Result<(), ComputationError> {
+    pub async fn stop(&self) -> Result<(), ComputationError> {
         Session::send_stop_signal(
-            operation_id,
-            &self.tx_operations,
             Some(&self.destroyed),
             &self.destroying,
+            &self.cancel_operations,
         )
         .await
     }

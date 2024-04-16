@@ -78,6 +78,7 @@ pub enum ByteRepresentation {
     Range((usize, usize)),
 }
 
+// FIXME try to add Unpin boundary and use in stream
 pub trait LogMessage: Display + Serialize {
     /// Serializes a message directly into a Writer
     /// returns the size of the serialized message

@@ -1,6 +1,6 @@
 use crate::{
     events::{NativeError, NativeErrorKind},
-    operations::{OperationAPI, OperationInterface, OperationResult},
+    operations::{OperationAPI, OperationInterface, OperationResult, Serializable},
     progress::Severity,
     state::SessionStateAPI,
     unbound::signal::Signal,
@@ -27,6 +27,7 @@ use sources::{
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    pin::pin,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -48,13 +49,19 @@ impl ExportOperation {
 
 #[async_trait]
 impl OperationInterface for ExportOperation {
-    type Output = bool;
     async fn execute(
         &self,
         _: &OperationAPI,
         state_api: &SessionStateAPI,
-    ) -> OperationResult<Self::Output> {
-        execute_export(&self.signal.token(), state_api, self.out_path, self.ranges).await
+    ) -> OperationResult<Box<dyn Serializable>> {
+        let res =
+            execute_export(&self.signal.token(), state_api, self.out_path, self.ranges).await?;
+
+        // TODO check if None really should result in None
+        Ok(match res {
+            Some(r) => Some(Box::new(r)),
+            None => None,
+        })
     }
 
     fn get_signal(&self) -> Signal {
@@ -179,15 +186,8 @@ async fn export<S: ByteSource>(
                 SomeipParser::new()
             };
             let mut producer = MessageProducer::new(parser, source, None);
-            export_runner(
-                Box::pin(producer.as_stream()),
-                dest,
-                sections,
-                read_to_end,
-                false,
-                cancel,
-            )
-            .await
+            let stream = pin!(producer.as_stream());
+            export_runner(stream, dest, sections, read_to_end, false, cancel).await
         }
         ParserType::Dlt(settings) => {
             let fmt_options = Some(FormatOptions::from(settings.tz.as_ref()));
@@ -198,27 +198,13 @@ async fn export<S: ByteSource>(
                 settings.with_storage_header,
             );
             let mut producer = MessageProducer::new(parser, source, None);
-            export_runner(
-                Box::pin(producer.as_stream()),
-                dest,
-                sections,
-                read_to_end,
-                false,
-                cancel,
-            )
-            .await
+            let stream = pin!(producer.as_stream());
+            export_runner(stream, dest, sections, read_to_end, false, cancel).await
         }
         ParserType::Text => {
             let mut producer = MessageProducer::new(StringTokenizer {}, source, None);
-            export_runner(
-                Box::pin(producer.as_stream()),
-                dest,
-                sections,
-                read_to_end,
-                true,
-                cancel,
-            )
-            .await
+            let stream = pin!(producer.as_stream());
+            export_runner(stream, dest, sections, read_to_end, true, cancel).await
         }
     }
 }
