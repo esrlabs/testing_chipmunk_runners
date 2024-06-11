@@ -1,3 +1,60 @@
+# 3.12.9 (06.06.2024)
+
+## Fixes
+- Fix issue with non-UTF8 symbols in paths (recent actions)
+
+# 3.12.8 (24.05.2024)
+
+## Fixes
+- Fix issue on stopping observing 
+
+# 3.12.7 (17.05.2024)
+
+## Changes
+- Allow open files from favorites by dblclick
+
+## Fixes
+- Fix the import/export presets feature
+- Fix logger. Make it react to envvars correctly
+
+## Updates
+- Upgrade electron version
+
+# 3.12.6 (10.05.2024)
+
+## Changes
+- Up electron version to 30.x.x
+
+# 3.12.5 (08.05.2024)
+
+## Changes
+- Check filters/charts during importing
+- Highlight invalid filters/charts in sidebar
+- Prevent search with invalid conditions
+- Better error reporting on search fail
+- Correction of filters/charts styles (sidebar)
+- Allow modification of invalid filters/charts
+
+# 3.12.4 (19.04.2024)
+
+## Fixes
+- Fix parsing disabled entities (filters/charts)
+
+# 3.12.3 (19.04.2024)
+
+## Changes
+- Optimization of the events life cycle of filters/charts/disabled
+
+# 3.12.2 (19.04.2024)
+
+## Changes
+- Optimization for "History/Presets" tab
+
+# 3.12.1 (16.04.2024)
+
+## Fixes
+- Fix issue related to invalid UTF-8 and Unicode
+
 # 3.12.0 (12.04.2024)
 
 ## Features

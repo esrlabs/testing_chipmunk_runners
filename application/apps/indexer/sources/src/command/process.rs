@@ -67,7 +67,7 @@ impl ProcessSource {
                 let mut str = a.to_string();
                 for (i, g) in groups.iter().enumerate() {
                     let key = format!("==extraction:({i})==");
-                    str = str.replace(&key, g).to_owned();
+                    str.replace(&key, g).clone_into(&mut str);
                 }
                 let restored = str.replace("==esc_space==", " ");
                 OsString::from(tilde(&restored).to_string())
@@ -91,6 +91,7 @@ impl ProcessSource {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()
             .map_err(|e| ProcessError::Setup(format!("{e}")))
     }
@@ -109,6 +110,7 @@ impl ProcessSource {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()
             .map_err(|e| ProcessError::Setup(format!("{e}")))
     }
@@ -239,12 +241,10 @@ async fn test_process() -> Result<(), ProcessError> {
                 .is_some()
             {
                 assert!(!process_source.current_slice().is_empty());
-                // println!(
-                //     "{}",
-                //     std::str::from_utf8(process_source.current_slice()).unwrap()
-                // );
                 process_source.consume(process_source.current_slice().len());
             }
+            // By some reasons during test sometimes process stay alive and as result
+            let _ = process_source.process.kill().await;
             Ok(())
         }
         Err(err) => Err(err),

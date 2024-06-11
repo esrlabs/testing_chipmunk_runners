@@ -5,6 +5,7 @@ import { FileType } from '@platform/types/observe/types/file';
 import { ShellProfile } from '@platform/types/shells';
 import { StatisticInfo } from '@platform/types/observe/parser/dlt';
 import { Entry } from '@platform/types/storage/entry';
+import { error } from '@platform/log/utils';
 
 import * as Requests from '@platform/ipc/request/index';
 
@@ -51,6 +52,7 @@ export class Service extends Implementation {
         }): Promise<{ entities: Entity[]; max: boolean }>;
         stat(path: string): Promise<Entity>;
         checksum(filename: string): Promise<string>;
+        isBinary(file: string): Promise<boolean>;
         checksumWithCache(filename: string): Promise<string>;
         exists(path: string): Promise<boolean>;
         name(
@@ -208,6 +210,20 @@ export class Service extends Implementation {
                         return Promise.reject(new Error(response.error));
                     } else {
                         return Promise.reject(new Error(`Unknown error`));
+                    }
+                });
+            },
+            isBinary: (file: string): Promise<boolean> => {
+                return Requests.IpcRequest.send(
+                    Requests.File.IsBinary.Response,
+                    new Requests.File.IsBinary.Request({
+                        file,
+                    }),
+                ).then((response) => {
+                    if (response.error !== undefined) {
+                        return Promise.reject(new Error(response.error));
+                    } else {
+                        return Promise.resolve(response.binary);
                     }
                 });
             },
@@ -685,7 +701,7 @@ export class Service extends Implementation {
                     new Requests.Storage.EntriesSet.Request({
                         key: dest.key,
                         file: dest.file,
-                        entries,
+                        entries: JSON.stringify(entries),
                         mode,
                     }),
                 )
@@ -706,7 +722,15 @@ export class Service extends Implementation {
                         }),
                     )
                         .then((response) => {
-                            resolve(response.entries);
+                            try {
+                                const entries: Entry[] = JSON.parse(response.entries);
+                                if (!(entries instanceof Array)) {
+                                    throw new Error(`Expecting entries will be {Entry[]}`);
+                                }
+                                resolve(entries);
+                            } catch (e) {
+                                reject(new Error(this.log().error(error(e))));
+                            }
                         })
                         .catch(reject);
                 });
