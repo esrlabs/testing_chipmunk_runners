@@ -62,25 +62,29 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y gconf-service libgbm-dev libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libnss3 lsb-release xdg-utils wget ca-certificates
           sudo apt-get install -y libudev-dev cargo npm
+      - name: install node
+        uses: actions/setup-node@master
+        with:
+          node-version: "current"
       - name: Install Ruby and required gems
         run: |
+          whoami
+          npm install -g corepack
+          corepack enable
           curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
           echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-          sudo apt-get update
-          corepack enable
+          apt-get update
           sudo apt-get install -y yarn
           yarn --version
-          sudo apt update
-          sudo apt install -y ruby-full
-          sudo apt-get install -y software-properties-common
-          sudo apt-add-repository -y ppa:rael-gc/rvm
-          sudo apt-get update
-          sudo apt-get install -y rvm
-          sudo usermod -a -G rvm $USER
+          apt update
+          apt-get install -y software-properties-common
+          apt-add-repository -y ppa:rael-gc/rvm
+          apt-get update
+          apt-get install -y rvm
           echo 'source "/etc/profile.d/rvm.sh"' >> ~/.bashrc
           source /etc/profile.d/rvm.sh
-          rvm install 3.1.2
-          echo "source $HOME/.rvm/scripts/rvm" >> ~/.bashrc
+          which rvm
+          rvm install ruby-3.1.2
           ruby --version
           sudo chown -R $(whoami) /usr/local
           rvm use 3.1.2 --default
@@ -88,18 +92,8 @@ jobs:
           rvm info
           which rvm
           ruby --version
-          source ~/.bashrc
-          gem install dotenv
-          gem install json
-          gem install octokit tmpdir fileutils
-          npm install -y rustup
-          export PATH="$HOME/.cargo/bin:$PATH"
-          export PATH="$HOME/.cargo/env:$PATH"
-          . "$HOME/.cargo/env"
-      - name: install node
-        uses: actions/setup-node@master
-        with:
-          node-version: "current"
+          gem install dotenv json octokit tmpdir fileutils
+          npm install tslib
       - name: cargo install nj-cli
         run: |
           cargo install nj-cli --locked
@@ -108,20 +102,17 @@ jobs:
         run: |
           source ./application/apps/rustcore/ts-bindings/spec/setup_config.sh sample_tag
           export PATH="/usr/share/rvm:$PATH"
-          source ~/.bashrc
           which ruby
           ruby --version
           pwd
-          source $HOME/.cargo/env
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          export PATH="/root/.cargo/bin:$PATH"
+          . "/root/.cargo/env"
+          source ~/.bashrc
+          printenv
           rustup -V
           whoami
           nj-cli --version
-          sudo chown -R $(whoami) /home/ubuntu/
-          printenv
-          rustup default stable
-          rake bindings:clean
-          rake bindings:test:indexes
-          rake bindings:test:search
-          rake bindings:test:observe
-          ls -la /home/ubuntu/chipmunk_performance_results
-          cat /home/ubuntu/chipmunk_performance_results/Benchmark_sample_tag.json
+          ruby scripts/tools/run_benchmarks.rb 5
+          ls -la /chipmunk/chipmunk_performance_results
+          cat /chipmunk/chipmunk_performance_results/Benchmark_sample_tag.json

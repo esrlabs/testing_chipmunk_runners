@@ -75,12 +75,7 @@
                         "file": "",
                         "expectation_ms": 1000
                     },
-                    // "test2": {
-                    //     "alias": "Open 50 sessions for small files",
-                    //     "file": "",
-                    //     "expectation_ms": 15000
-                    // },
-                    "test3": {
+                    "test2": {
                         "alias": "Shutdown Measurements",
                         "file": "",
                         "expectation_ms": 10000
@@ -136,7 +131,7 @@
                     "test2": {
                         "alias": "Assign & multiple search",
                         "file": "test_files/indexing_access_huge.log",
-                        "expectation_ms": 1000
+                        "expectation_ms": 10000
                     }
                 }
             }

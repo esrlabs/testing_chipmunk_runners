@@ -8,8 +8,8 @@ REPO_NAME = 'chipmunk'
 RAKE_COMMANDS = [
   'rake clean',
   'rake bindings:test:stream',
-  # 'rake bindings:test:indexes',
-  # 'rake bindings:test:search',
+  'rake bindings:test:indexes',
+  'rake bindings:test:search',
   'rake bindings:test:observe'
 ]
 
