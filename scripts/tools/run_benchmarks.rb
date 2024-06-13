@@ -1,12 +1,16 @@
 require 'octokit'
 require 'tmpdir'
 require 'fileutils'
+require 'gruff'
+require 'erb'
 
 REPO_OWNER = 'esrlabs'
 REPO_NAME = 'chipmunk'
 
 RAKE_COMMANDS = [
-  'rake clean',
+  'rake clobber',
+  'rake bindings:build',
+  'rake bindings:build_spec',
   'rake bindings:test:stream',
   'rake bindings:test:indexes',
   'rake bindings:test:search',
@@ -14,7 +18,6 @@ RAKE_COMMANDS = [
 ]
 
 SHELL_SCRIPT_PATH = 'application/apps/rustcore/ts-bindings/spec'
-SHELL_SCRIPT_NAME = 'setup_config.sh'
 
 if ARGV.length > 1
   puts "Usage: ruby scripts/tools/run_benchmarks.rb <number_of_releases>"
@@ -41,34 +44,157 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
     'SH_HOME_DIR' => "/chipmunk"
     # 'SH_HOME_DIR' => "/Users/sameer.g.srivastava"
   }
+
   # Create a temporary directory for this release
   Dir.mktmpdir do |temp_dir|
-    # Clone the repository into the temporary directory
-    system("git clone --depth 1 --branch #{release.tag_name} https://github.com/#{REPO_OWNER}/#{REPO_NAME}.git #{temp_dir}")
+    begin
+      # Clone the repository into the temporary directory
+      system("git clone --depth 1 --branch #{release.tag_name} https://github.com/#{REPO_OWNER}/#{REPO_NAME}.git #{temp_dir}")
 
-    FileUtils.cp_r("#{SHELL_SCRIPT_PATH}/.", "#{temp_dir}/#{SHELL_SCRIPT_PATH}/.", verbose: true)
+      # Copy scripts folder to have the test cases available in the cloned repo
+      FileUtils.cp_r("#{SHELL_SCRIPT_PATH}/.", "#{temp_dir}/#{SHELL_SCRIPT_PATH}/.", verbose: true)
 
-    # Change directory to the temporary directory
-    Dir.chdir(temp_dir) do
-      # Execute the shell script
-      ENV_VARS.each do |key, value|
-        ENV[key] = "#{value}"
+      result_path = "#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/Benchmark_#{release.tag_name}.json"
+
+      # Change directory to the temporary directory
+      Dir.chdir(temp_dir) do
+        # Execute the shell script
+        ENV_VARS.each do |key, value|
+          ENV[key] = "#{value}"
+        end
+
+        system("corepack enable")
+        system("yarn cache clean")
+
+        if File.exist?("#{SHELL_SCRIPT_PATH}/#{ENV_VARS['JASMIN_TEST_CONFIGURATION'].gsub('./spec/', '')}")
+          puts "File exists."
+        else
+          break
+        end
+
+        system("printenv")
+
+        if File.exist?(result_path)
+          FileUtils.rm(result_path, verbose: true)
+        end
+
+        # Run each Rake command
+        RAKE_COMMANDS.each do |command|
+          puts "Running #{command} for tag #{release.name}"
+          system(command)
+        end
       end
 
-      system("printenv")
-
-      if File.exist?("#{SHELL_SCRIPT_PATH}/#{ENV_VARS['JASMIN_TEST_CONFIGURATION'].gsub('./spec/', '')}")
-        puts "File exists."
+      if File.exist?(result_path)
+        puts "Benchmark results:"
+        system("cat #{result_path}")
       else
-        break
+        puts "Benchmark results not found at #{result_path}."
       end
-      # Run each Rake command
-      RAKE_COMMANDS.each do |command|
-        system(command)
+
+    rescue => e
+      puts "An error occurred while processing release #{release.tag_name}: #{e.message}"
+    end
+
+    puts "Completed processing release #{index + 1}: #{release.name}"
+  end
+end
+
+# Method to read and parse JSON files
+def read_benchmark_data(file_path)
+  puts "Data in file = #{file_path}\n#{File.read(file_path)}\n:: EOF"
+  { file_name: File.basename(file_path), data: JSON.parse(File.read(file_path)) }
+end
+
+# Method to collect data from the latest 10 JSON files
+def collect_latest_benchmark_data(directory)
+  Dir.glob("#{directory}/*.json").sort.last(10).map do |file|
+    read_benchmark_data(file)
+  end
+end
+
+# Method to generate graphs for each performance test type
+def generate_performance_graphs(data)
+  # Hash to store data organized by test name
+  test_data = {}
+
+  # Collect data by test name
+  data.each do |benchmark|
+    benchmark[:data].each do |entry|
+      test_name = entry['name']
+      actual_value = entry['actual']
+      file_name = benchmark[:file_name]
+
+      if test_data[test_name]
+        test_data[test_name] << { file_name: file_name, actual_value: actual_value }
+      else
+        test_data[test_name] = [{ file_name: file_name, actual_value: actual_value }]
       end
     end
-    system("cat #{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/Benchmark_#{release.tag_name}.json")
   end
 
-  puts "Completed processing release #{index + 1}: #{release.name}"
+  puts ("Test data = #{test_data.inspect}")
+  # Generate graphs for each test type
+  test_data.each do |test_name, entries|
+    graph = Gruff::Bar.new
+    graph.title = test_name
+    graph.labels = Hash[(0...entries.size).zip entries.map { |entry| entry[:file_name].gsub("Benchmark_","").gsub(".json","") }]
+
+    actual_values = entries.map { |entry| entry[:actual_value] }
+
+    graph.data('Actual Value(in ms)', actual_values)
+
+    graph.write("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/#{test_name.downcase.gsub(/[^a-z0-9\-]+/, '_')}.png")
+  end
 end
+
+# Main execution
+benchmark_data = collect_latest_benchmark_data("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}")
+generate_performance_graphs(benchmark_data)
+
+# Read all image files from the test results folder
+image_files = Dir.entries("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}").select { |file| file.match(/\.(jpg|jpeg|png)$/i) }
+
+# Generate HTML content
+html_content = <<~HTML
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Chipmunk benchmarks</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+      .image-container {
+        margin: 20px 0;
+      }
+      .image-container img {
+        max-width: 100%;
+        height: auto;
+      }
+      .image-label {
+        margin-top: 10px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Chipmunk benchmarks</h1>
+    <% image_files.sort.each do |file| %>
+      <div class="image-container">
+        <img src="<%= File.join('#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}', file) %>" alt="<%= file %>">
+        <div class="image-label"><%= file %></div>
+      </div>
+    <% end %>
+  </body>
+  </html>
+HTML
+
+# Create the HTML file
+File.open("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/Benchmark_results.html", 'w') do |file|
+  renderer = ERB.new(html_content)
+  file.write(renderer.result(binding))
+end
+
+puts "HTML file created successfully!"

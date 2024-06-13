@@ -25,27 +25,21 @@
                 "run": true,
                 "tests": {
                     "test1": {
-                        "alias": "Observe and grab content (text)",
+                        "alias": "Observe - grab content (text)",
                         "open_as": "text",
                         "file": "test_files/temp_readings3.txt",
                         "expectation_ms": 10000
                     },
                     "test2": {
-                        "alias": "Observe and grab content (pcapng)",
+                        "alias": "Observe - grab content (pcapng)",
                         "open_as": "dlt",
                         "file": "test_files/FzgProg_SP21.dlt",
                         "expectation_ms": 60000
                     },
                     "test3": {
-                        "alias": "Observe and grab content (dlt)",
+                        "alias": "Observe - grab content (dlt)",
                         "open_as": "pcapng",
                         "file": "test_files/someip.pcapng",
-                        "expectation_ms": 1000
-                    },
-                    "test4": {
-                        "alias": "Startup Measurements",
-                        "open_as": "startup_measurement",
-                        "file": "",
                         "expectation_ms": 1000
                     }
                 }
@@ -67,16 +61,20 @@
                 }
             },
             "performance": {
-                /* In false will prevent running performance tests */
                 "run": true,
                 "tests": {
                     "test1": {
-                        "alias": "startup measurement",
+                        "alias": "Stream - startup measurement",
                         "file": "",
                         "expectation_ms": 1000
                     },
                     "test2": {
-                        "alias": "Shutdown Measurements",
+                        "alias": "Stream - shutdown measurement",
+                        "file": "",
+                        "expectation_ms": 10000
+                    },
+                    "test3": {
+                        "alias": "Stream - Open 50 sessions",
                         "file": "",
                         "expectation_ms": 10000
                     }
@@ -97,7 +95,7 @@
                 "run": true,
                 "tests": {
                     "test1": {
-                        "alias": "Switch to breadcrumb mode",
+                        "alias": "Indexes - Switch to breadcrumb mode",
                         "file": "test_files/indexing_access_huge.log",
                         "expectation_ms": 15000
                     }

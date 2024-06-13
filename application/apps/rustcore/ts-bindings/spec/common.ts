@@ -221,17 +221,32 @@ export function performanceReport(
     let performance_results_folder = (process.env as any)['PERFORMANCE_RESULTS_FOLDER'];
     let performance_results = (process.env as any)['PERFORMANCE_RESULTS'];
     let home_dir = (process.env as any)['SH_HOME_DIR'];
-    if (typeof performance_results === 'string') {
+    if (home_dir && performance_results_folder) {
         const folderPath = path.join(home_dir, performance_results_folder);
         const filePath = path.join(folderPath, performance_results);
         // Ensure filePath is a real path
         if (!fs.existsSync(folderPath)) {
             // Create directory if it doesn't exist
             fs.mkdirSync(folderPath, { recursive: true });
+            output(`Created directory: ${folderPath}`);
         }
-        const data = JSON.stringify(result, null, 2) + ',\n'; // JSON format with indentation and comma
-        fs.appendFileSync(filePath, data);
+
+        let results = [];
+        if (fs.existsSync(filePath)) {
+            let existingData = fs.readFileSync(filePath, 'utf-8');
+            try {
+                results = JSON.parse(existingData);
+            } catch (error) {
+                output('Error parsing existing JSON data:');
+            }
+        }
+        results.push(result);
+        const data = JSON.stringify(results, null, 2); // JSON format with indentation
+        fs.writeFileSync(filePath, data);
+    } else {
+        output(`Missing necessary environment variables for file path.`);
     }
+
 
     return actual <= expectation;
 }

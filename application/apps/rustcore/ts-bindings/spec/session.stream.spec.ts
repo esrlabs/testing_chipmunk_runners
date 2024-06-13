@@ -582,7 +582,7 @@ if (process.platform === 'win32') {
         Object.keys(config.regular.execute_only).length > 0 &&
         Object.keys(config.performance.tests).forEach((alias: string, index: number) => {
             const test = (config.performance.tests as any)[alias];
-            const testName = `Performance test #${index + 1} - (${test.alias})`;
+            const testName = `${test.alias}`;
             if (test.ignore) {
                 console.log(`Test "${testName}" has been ignored`);
                 return;
@@ -597,140 +597,106 @@ if (process.platform === 'win32') {
                     1,
                     async (logger, done, collector) => {
                         const measurement = setMeasurement();
-                        Session.create()
-                            .then(async (session: Session) => {
-                                // Set provider into debug mode
-                                session.debug(true, testName);
-                                const stream = session.getStream();
-                                if (stream instanceof Error) {
-                                    finish(session, done, stream);
-                                    return;
-                                }
-                                const events = session.getEvents();
-                                if (events instanceof Error) {
-                                    finish(session, done, events);
-                                    return;
-                                }
-                                const search = session.getSearch();
-                                if (search instanceof Error) {
-                                    finish(session, done, search);
-                                    return;
-                                }
-                                let home_dir = (process.env as any)['SH_HOME_DIR'];
-                                switch (index+1) {
-                                    case 1:
-                                        const tmpobj = createSampleFile(
-                                            5000,
-                                            logger,
-                                            (i: number) => `some line data: ${i}\n`,
-                                        );
-                                        stream
-                                            .observe(
-                                                new Factory.Stream()
-                                                    .asText()
-                                                    .process({
-                                                        command: `less ${tmpobj.name}`,
-                                                        cwd: process.cwd(),
-                                                        envs: process.env as { [key: string]: string },
-                                                    })
-                                                    .get()
-                                                    .sterilized(),
-                                            )
-                                            .catch(finish.bind(null, session, done));
-                                        break;
-                                    case 2:
-                                            // Create and open 50 files sequentially
-                                            for (let i = 0; i < 50; i++) {
-                                                const file = createSampleFile(
-                                                    100,
-                                                    logger,
-                                                    (j: number) => `file ${i} line data: ${j}\n`,
-                                                );
-
-                                                const result = await stream
-                                                    .observe(
-                                                        new Factory.Stream()
-                                                            .asText()
-                                                            .process({
-                                                                command: `less ${file.name}`,
-                                                                cwd: process.cwd(),
-                                                                envs: process.env as { [key: string]: string },
-                                                            })
-                                                            .get()
-                                                            .sterilized(),
-                                                    )
-                                                    .catch((err) => `File ${i} failed to open: ${err.message}`);
-                                            }
-                                            const results = measurement();
-                                            finish(
-                                                session,
-                                                done,
-                                                performanceReport(
-                                                    testName,
-                                                    results.ms,
-                                                    test.expectation_ms,
-                                                    `Processed 50 files`,
-                                                )
-                                                    ? undefined
-                                                    : new Error(`${testName} is fail`),
-                                            );
-                                        break;
-                                    case 3:
-                                        const tmpobj2 = createSampleFile(
-                                            5000,
-                                            logger,
-                                            (i: number) => `some line data: ${i}\n`,
-                                        );
-                                        stream
-                                            .observe(
-                                                new Factory.Stream()
-                                                    .asText()
-                                                    .process({
-                                                        command: `less ${tmpobj2.name}`,
-                                                        cwd: process.cwd(),
-                                                        envs: process.env as { [key: string]: string },
-                                                    })
-                                                    .get()
-                                                    .sterilized(),
-                                            )
-                                            // .then(() => session.destroy()) // Close the session after observing the stream
-                                            .catch(finish.bind(null, session, done));
-                                        break;
-                                    default:
-                                        finish(
-                                            undefined,
-                                            done,
-                                            new Error(`Unsupported format: ${test.open_as}`),
-                                        );
-                                        return;
-                                }
-                                events.FileRead.subscribe(() => {
-                                    const results = measurement();
-                                    finish(
-                                        session,
-                                        done,
-                                        performanceReport(
-                                            testName,
-                                            results.ms,
-                                            test.expectation_ms,
-                                        )
-                                            ? undefined
-                                            : new Error(`${testName} is fail`),
+                        try {
+                            switch (index + 1) {
+                                case 1:
+                                    const tmpobj1 = createSampleFile(
+                                        5000,
+                                        logger,
+                                        (i: number) => `some line data: ${i}\n`
                                     );
-                                });
-                            })
-                            .catch((err: Error) => {
-                                finish(
-                                    undefined,
-                                    done,
-                                    new Error(
-                                        `Fail to create session due error: ${
-                                            err instanceof Error ? err.message : err
-                                        }`,
-                                    ),
-                                );
-                            });
-                    },
+                                    const session1 = await Session.create();
+                                    session1.debug(true, testName);
+                                    const stream1 = session1.getStream();
+                                    if (stream1 instanceof Error) {
+                                        throw stream1;
+                                    }
+                                    await stream1.observe(
+                                        new Factory.Stream()
+                                            .asText()
+                                            .process({
+                                                command: `less ${tmpobj1.name}`,
+                                                cwd: process.cwd(),
+                                                envs: process.env as { [key: string]: string },
+                                            })
+                                            .get()
+                                            .sterilized()
+                                    );
+                                    break;
+                                case 2:
+                                    const tmpobj2 = createSampleFile(
+                                        5000,
+                                        logger,
+                                        (i: number) => `some line data: ${i}\n`
+                                    );
+                                    const session2 = await Session.create();
+                                    session2.debug(true, testName);
+                                    const stream2 = session2.getStream();
+                                    if (stream2 instanceof Error) {
+                                        throw stream2;
+                                    }
+                                    await stream2.observe(
+                                        new Factory.Stream()
+                                            .asText()
+                                            .process({
+                                                command: `less ${tmpobj2.name}`,
+                                                cwd: process.cwd(),
+                                                envs: process.env as { [key: string]: string },
+                                            })
+                                            .get()
+                                            .sterilized()
+                                    );
+                                    finish(undefined, done);
+                                    break;
+                                case 3:
+                                    const results = [];
+                                    for (let i = 0; i < 50; i++) {
+                                        const file = createSampleFile(
+                                            100,
+                                            logger,
+                                            (j: number) => `file ${i} line data: ${j}\n`
+                                        );
+
+                                        const session = await Session.create();
+                                        session.debug(true, `${testName} - session ${i}`);
+                                        const stream = session.getStream();
+                                        if (stream instanceof Error) {
+                                            throw stream;
+                                        }
+                                        let result = await stream.observe(
+                                            new Factory.Stream()
+                                                .asText()
+                                                .process({
+                                                    command: `less ${file.name}`,
+                                                    cwd: process.cwd(),
+                                                    envs: process.env as { [key: string]: string },
+                                                })
+                                                .get()
+                                                .sterilized()
+                                        ).catch((err) => `File ${i} failed to open: ${err.message}`);
+                                        results.push(result);
+                                    }
+                                    finish(undefined, done);
+                                    break;
+                                default:
+                                    throw new Error(`Unsupported format: ${test.open_as}`);
+                            }
+                            const results = measurement();
+                            finish(
+                                undefined,
+                                done,
+                                performanceReport(testName, results.ms, test.expectation_ms)
+                                    ? undefined
+                                    : new Error(`${testName} is fail`)
+                            );
+                        } catch (err) {
+                            finish(
+                                undefined,
+                                done,
+                                new Error(`Fail to create session due error: ${err instanceof Error ? err.message : err}`)
+                            );
+                        }
+                    }
                 );
             });
         });

@@ -1007,7 +1007,7 @@ describe('Search', function () {
         Object.keys(config.regular.execute_only).length > 0 &&
         Object.keys(config.performance.tests).forEach((alias: string, index: number) => {
             const test = (config.performance.tests as any)[alias];
-            const testName = `Performance test #${index + 1} - (${test.alias})`;
+            const testName = `${test.alias}`;
             if (test.ignore) {
                 console.log(`Test "${testName}" has been ignored`);
                 return;
