@@ -1057,7 +1057,7 @@ describe('Search', function () {
                                                 search
                                                     .search([
                                                         {
-                                                            filter: 'match',
+                                                            filter: 'http',
                                                             flags: { reg: true, word: false, cases: false },
                                                         },
                                                     ])
@@ -1079,7 +1079,7 @@ describe('Search', function () {
                                                 search
                                                     .search([
                                                         {
-                                                            filter: 'PanGPS',
+                                                            filter: 'http://www.almhuette-raith.at',
                                                             flags: { reg: true, word: false, cases: false },
                                                         },
                                                         {

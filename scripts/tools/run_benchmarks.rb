@@ -1,8 +1,6 @@
 require 'octokit'
 require 'tmpdir'
 require 'fileutils'
-require 'gruff'
-require 'erb'
 
 REPO_OWNER = 'esrlabs'
 REPO_NAME = 'chipmunk'
@@ -42,7 +40,6 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
     'PERFORMANCE_RESULTS_FOLDER' => 'chipmunk_performance_results',
     'PERFORMANCE_RESULTS' => "Benchmark_#{release.tag_name}.json",
     'SH_HOME_DIR' => "/chipmunk"
-    # 'SH_HOME_DIR' => "/Users/sameer.g.srivastava"
   }
 
   # Create a temporary directory for this release
@@ -108,7 +105,7 @@ end
 
 # Method to collect data from the latest 10 JSON files
 def collect_latest_benchmark_data(directory)
-  Dir.glob("#{directory}/*.json").sort.last(10).map do |file|
+  Dir.glob("#{directory}/Benchmark*.json").map do |file|
     read_benchmark_data(file)
   end
 end
@@ -126,75 +123,20 @@ def generate_performance_graphs(data)
       file_name = benchmark[:file_name]
 
       if test_data[test_name]
-        test_data[test_name] << { file_name: file_name, actual_value: actual_value }
+        test_data[test_name] << { release: file_name.gsub("Benchmark_","").gsub(".json",""), actual_value: actual_value }
       else
-        test_data[test_name] = [{ file_name: file_name, actual_value: actual_value }]
+        test_data[test_name] = [{ release: file_name.gsub("Benchmark_","").gsub(".json",""), actual_value: actual_value }]
       end
     end
   end
 
-  puts ("Test data = #{test_data.inspect}")
-  # Generate graphs for each test type
-  test_data.each do |test_name, entries|
-    graph = Gruff::Bar.new
-    graph.title = test_name
-    graph.labels = Hash[(0...entries.size).zip entries.map { |entry| entry[:file_name].gsub("Benchmark_","").gsub(".json","") }]
-
-    actual_values = entries.map { |entry| entry[:actual_value] }
-
-    graph.data('Actual Value(in ms)', actual_values)
-
-    graph.write("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/#{test_name.downcase.gsub(/[^a-z0-9\-]+/, '_')}.png")
+  puts ("Test data = #{test_data.to_json}")
+  File.open("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/data.json", 'w') do |file|
+    file.write(test_data.to_json)
   end
+  puts "Benchmark data created successfully!"
 end
 
-# Main execution
 benchmark_data = collect_latest_benchmark_data("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}")
 generate_performance_graphs(benchmark_data)
 
-# Read all image files from the test results folder
-image_files = Dir.entries("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}").select { |file| file.match(/\.(jpg|jpeg|png)$/i) }
-
-# Generate HTML content
-html_content = <<~HTML
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <title>Chipmunk benchmarks</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        text-align: center;
-      }
-      .image-container {
-        margin: 20px 0;
-      }
-      .image-container img {
-        max-width: 100%;
-        height: auto;
-      }
-      .image-label {
-        margin-top: 10px;
-        font-weight: bold;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Chipmunk benchmarks</h1>
-    <% image_files.sort.each do |file| %>
-      <div class="image-container">
-        <img src="<%= File.join('#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}', file) %>" alt="<%= file %>">
-        <div class="image-label"><%= file %></div>
-      </div>
-    <% end %>
-  </body>
-  </html>
-HTML
-
-# Create the HTML file
-File.open("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/Benchmark_results.html", 'w') do |file|
-  renderer = ERB.new(html_content)
-  file.write(renderer.result(binding))
-end
-
-puts "HTML file created successfully!"
