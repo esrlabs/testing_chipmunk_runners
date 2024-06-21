@@ -126,9 +126,9 @@ jobs:
         run: |
           ls -la
           cp /chipmunk/chipmunk_performance_results/data.json ./jekyll/benchmarks/data/data.json
-          git config user.name "itsmesamster"
-          git config user.email "itsmesamster@gmail.com"
-          git remote set-url origin "https://itsmesamster:${{secrets.DOCS_PUSH_TOKEN}}@github.com/esrlabs/chipmunk-docs"
+          git config user.name "esrlabs"
+          git config user.email "esrlabs@gmail.com"
+          git remote set-url origin "https://esrlabs:${{secrets.DOCS_PUSH_TOKEN}}@github.com/esrlabs/chipmunk-docs"
           git add ./jekyll/benchmarks/data/data.json
           git commit -m "Updating data.json for latest tag"
           git push origin master
