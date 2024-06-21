@@ -56,6 +56,12 @@ jobs:
     name: Invoke Jasmine performance tests
     runs-on: self-hosted-runner-ubuntu
     steps:
+      - name: 'Cleanup build folder'
+        run: |
+          ls -la ./
+          rm -rf ./* || true
+          rm -rf ./.??* || true
+          ls -la ./
       - name: Checkout
         uses: actions/checkout@v3
       - name: libudev-dev
