@@ -18,21 +18,59 @@ RAKE_COMMANDS = [
 SHELL_SCRIPT_PATH = 'application/apps/rustcore/ts-bindings/spec'
 
 if ARGV.length > 1
-  puts "Usage: ruby scripts/tools/run_benchmarks.rb <number_of_releases>"
+  puts "Usage: ruby scripts/tools/run_benchmarks.rb <number_of_releases>/<start_tag-end_tag>"
   exit(1)
 end
 
-NUMBER_OF_RELEASES = ARGV[0].to_i == 0 ? 1 : ARGV[0].to_i
+def compute_average_of_benchmarks(result_path)
+  # Read the JSON data from the file
+  file_content = File.read(result_path)
+  data = JSON.parse(file_content)
 
-puts "running benchmarks for last #{NUMBER_OF_RELEASES} releases"
+  # Group the tests by their names and compute the average actual value for each test type
+  grouped_data = data.group_by { |test| test['name'] }
+  puts "grouped_data is \n#{grouped_data}"
+  averages = grouped_data.map do |name, tests|
+    average_actual = tests.sum { |test| test['actual'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
+    average_expected = tests.sum { |test| test['expectation'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
+    { 'name' => name, 'actual' => average_actual, "expectation": average_expected, 'passed' => average_actual <= average_expected }
+  end
+
+  puts "Final data is \n#{averages}"
+
+  # Write the resulting JSON back to the file
+  File.open(result_path, 'w') do |file|
+    file.write(JSON.pretty_generate(averages))
+  end
+  puts "Average actual values have been written to the file #{result_path}"
+end
 
 client = Octokit::Client.new()
 
 # Fetch the latest releases from the GitHub repository
 releases = client.releases("#{REPO_OWNER}/#{REPO_NAME}")
 
+if !ARGV[0] || (ARGV.length == 1 && ARGV[0].match?(/\A\d+(\.\d+)?\z/))
+  NUMBER_OF_RELEASES = ARGV[0].to_i == 0 ? 1 : ARGV[0].to_i
+  filtered_releases = releases.take(NUMBER_OF_RELEASES)
+  puts "running benchmarks for last #{NUMBER_OF_RELEASES} releases"
+elsif ARGV.length == 1 && ARGV[0].include?('-')
+  start_tag, end_tag = ARGV[0].split('-')
+  if start_tag.nil? || end_tag.nil?
+    puts "Invalid range format. Use <start_tag-end_tag>"
+    exit(1)
+  end
+  filtered_releases = releases.select do |release|
+    release.tag_name >= start_tag && release.tag_name <= end_tag
+  end
+  puts "running benchmarks for releases #{start_tag} - #{end_tag}"
+else
+  puts "Usage: ruby scripts/tools/run_benchmarks.rb <number_of_releases>/<start_tag-end_tag>"
+  exit(1)
+end
+
 # Iterate over the specified number of releases
-releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
+filtered_releases.each_with_index do |release, index|
   puts "Processing release #{index + 1}: #{release.name}"
 
   ENV_VARS = {
@@ -40,6 +78,7 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
     'PERFORMANCE_RESULTS_FOLDER' => 'chipmunk_performance_results',
     'PERFORMANCE_RESULTS' => "Benchmark_#{release.tag_name}.json",
     'SH_HOME_DIR' => "/chipmunk"
+    # 'SH_HOME_DIR' => "/Users/sameer.g.srivastava"
   }
 
   # Create a temporary directory for this release
@@ -50,6 +89,7 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
 
       # Copy scripts folder to have the test cases available in the cloned repo
       FileUtils.cp_r("#{SHELL_SCRIPT_PATH}/.", "#{temp_dir}/#{SHELL_SCRIPT_PATH}/.", verbose: true)
+      FileUtils.cp_r("scripts/elements/bindings.rb", "#{temp_dir}/scripts/elements/bindings.rb", verbose: true)
 
       result_path = "#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}/Benchmark_#{release.tag_name}.json"
 
@@ -64,7 +104,7 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
         system("yarn cache clean")
 
         if File.exist?("#{SHELL_SCRIPT_PATH}/#{ENV_VARS['JASMIN_TEST_CONFIGURATION'].gsub('./spec/', '')}")
-          puts "File exists."
+          puts "Benchmark.json file available."
         else
           break
         end
@@ -82,18 +122,19 @@ releases.take(NUMBER_OF_RELEASES).each_with_index do |release, index|
         end
       end
 
-      if File.exist?(result_path)
-        puts "Benchmark results:"
-        system("cat #{result_path}")
-      else
-        puts "Benchmark results not found at #{result_path}."
-      end
-
     rescue => e
       puts "An error occurred while processing release #{release.tag_name}: #{e.message}"
     end
 
+    if File.exist?(result_path)
+      compute_average_of_benchmarks(result_path)
+      puts "Benchmark results:"
+      system("cat #{result_path}")
+    else
+      puts "Benchmark results not found at #{result_path}."
+    end
     puts "Completed processing release #{index + 1}: #{release.name}"
+
   end
 end
 
@@ -111,7 +152,7 @@ def collect_latest_benchmark_data(directory)
 end
 
 # Method to generate graphs for each performance test type
-def generate_performance_graphs(data)
+def update_performance_data(data)
   # Hash to store data organized by test name
   test_data = {}
 
@@ -138,5 +179,5 @@ def generate_performance_graphs(data)
 end
 
 benchmark_data = collect_latest_benchmark_data("#{ENV_VARS['SH_HOME_DIR']}/#{ENV_VARS['PERFORMANCE_RESULTS_FOLDER']}")
-generate_performance_graphs(benchmark_data)
+update_performance_data(benchmark_data)
 
