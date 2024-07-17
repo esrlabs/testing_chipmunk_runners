@@ -30,10 +30,17 @@ def compute_average_of_benchmarks(result_path)
   # Group the tests by their names and compute the average actual value for each test type
   grouped_data = data.group_by { |test| test['name'] }
   puts "grouped_data is \n#{grouped_data}"
+
   averages = grouped_data.map do |name, tests|
-    average_actual = tests.sum { |test| test['actual'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
-    average_expected = tests.sum { |test| test['expectation'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
-    { 'name' => name, 'actual' => average_actual, "expectation": average_expected, 'passed' => average_actual <= average_expected }
+    passed_tests = tests.select { |test| test['passed'] }
+
+    if passed_tests.any?
+      average_actual = passed_tests.sum { |test| test['actual'].to_f } / passed_tests.size
+      average_expected = passed_tests.sum { |test| test['expectation'].to_f } / passed_tests.size
+      { 'name' => name, 'actual' => average_actual, 'expectation' => average_expected, 'passed' => average_actual <= average_expected }
+    else
+      { 'name' => name, 'actual' => 0, 'expectation' => 0, 'passed' => false }
+    end
   end
 
   puts "Final data is \n#{averages}"
@@ -44,6 +51,29 @@ def compute_average_of_benchmarks(result_path)
   end
   puts "Average actual values have been written to the file #{result_path}"
 end
+
+# def compute_average_of_benchmarks(result_path)
+#   # Read the JSON data from the file
+#   file_content = File.read(result_path)
+#   data = JSON.parse(file_content)
+
+#   # Group the tests by their names and compute the average actual value for each test type
+#   grouped_data = data.group_by { |test| test['name'] }
+#   puts "grouped_data is \n#{grouped_data}"
+#   averages = grouped_data.map do |name, tests|
+#     average_actual = tests.sum { |test| test['actual'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
+#     average_expected = tests.sum { |test| test['expectation'] if test['passed'] rescue 0} / tests.sum{ |test| test['passed'] ? 1 : 0 rescue 0}
+#     { 'name' => name, 'actual' => average_actual, "expectation": average_expected, 'passed' => average_actual <= average_expected }
+#   end
+
+#   puts "Final data is \n#{averages}"
+
+#   # Write the resulting JSON back to the file
+#   File.open(result_path, 'w') do |file|
+#     file.write(JSON.pretty_generate(averages))
+#   end
+#   puts "Average actual values have been written to the file #{result_path}"
+# end
 
 client = Octokit::Client.new()
 
