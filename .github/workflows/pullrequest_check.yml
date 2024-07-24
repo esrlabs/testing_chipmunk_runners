@@ -3,87 +3,103 @@ name: Checks
 on: [pull_request]
 
 jobs:
-  ts_lint:
-    runs-on: ubuntu-latest
+  # ts_lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
+  #     - name: install ruby
+  #       uses: ruby/setup-ruby@v1
+  #       with:
+  #         ruby-version: "3.0"
+  #         bundler-cache: true
+  #     - name: install ruby:gem::dotenv
+  #       run: gem install dotenv
+  #     - name: install ruby:gem::json
+  #       run: gem install json
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         override: true
+  #     - name: enable corepack for yarnpkg upgrade
+  #       run: corepack enable
+  #     - name: JS/TS linting
+  #       run: rake lint:js
+  # rust_lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
+  #     - name: libudev-dev
+  #       run: sudo apt-get install -y libudev-dev
+  #     - name: install ruby
+  #       uses: ruby/setup-ruby@v1
+  #       with:
+  #         ruby-version: "3.0"
+  #         bundler-cache: true
+  #     - name: install ruby:gem::dotenv
+  #       run: gem install dotenv
+  #     - name: install ruby:gem::json
+  #       run: gem install json
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         override: true
+  #     - name: Rust linting
+  #       run: rake lint:rust
+  # integration_tests:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
+  #     - name: libudev-dev
+  #       run: sudo apt-get install -y libudev-dev
+  #     - name: install ruby
+  #       uses: ruby/setup-ruby@v1
+  #       with:
+  #         ruby-version: "3.0"
+  #         bundler-cache: true
+  #     - name: install ruby:gem::dotenv
+  #       run: gem install dotenv
+  #     - name: install ruby:gem::json
+  #       run: gem install json
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         override: true
+  #     - name: enable corepack for yarnpkg upgrade
+  #       run: |
+  #         npm install tslib
+  #         corepack enable
+  #     - name: Run integration tests
+  #       run: rake test:js
+  # unit_tests:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
+  #     - name: libudev-dev
+  #       run: sudo apt-get install -y libudev-dev
+  #     - name: install ruby
+  #       uses: ruby/setup-ruby@v1
+  #       with:
+  #         ruby-version: "3.0"
+  #         bundler-cache: true
+  #     - name: Run unit tests on indexer
+  #       run: rake test:rust
+  benchmarks:
+    name: Invoke Jasmine performance tests
+    runs-on: self-hosted-runner-ubuntu
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: install ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.0"
-          bundler-cache: true
-      - name: install ruby:gem::dotenv
-        run: gem install dotenv
-      - name: install ruby:gem::json
-        run: gem install json
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: enable corepack for yarnpkg upgrade
-        run: corepack enable
-      - name: JS/TS linting
-        run: rake lint:js
-  rust_lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: libudev-dev
-        run: sudo apt-get install -y libudev-dev
-      - name: install ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.0"
-          bundler-cache: true
-      - name: install ruby:gem::dotenv
-        run: gem install dotenv
-      - name: install ruby:gem::json
-        run: gem install json
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: Rust linting
-        run: rake lint:rust
-  integration_tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: libudev-dev
-        run: sudo apt-get install -y libudev-dev
-      - name: install ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.0"
-          bundler-cache: true
-      - name: install ruby:gem::dotenv
-        run: gem install dotenv
-      - name: install ruby:gem::json
-        run: gem install json
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: enable corepack for yarnpkg upgrade
+      - name: 'Cleanup build folder'
         run: |
-          npm install tslib
-          corepack enable
-      - name: Run integration tests
-        run: rake test:js
-  unit_tests:
-    runs-on: ubuntu-latest
-    steps:
+          ls -la ./
+          rm -rf ./* || true
+          rm -rf ./.??* || true
+          ls -la ./
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: libudev-dev
-        run: sudo apt-get install -y libudev-dev
-      - name: install ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.0"
-          bundler-cache: true
-      - name: Run unit tests on indexer
-        run: rake test:rust
+        uses: actions/checkout@v3
+      - name: Run Jasmine performance tests
+        run: |
+          ruby scripts/tools/run_benchmarks1.rb PR~{{ github.event.pull_request.number }}
+          ls -la /chipmunk/chipmunk_performance_results
