@@ -96,6 +96,7 @@ jobs:
         run: |
           echo "PR head owner: ${{ github.event.pull_request.head.repo.owner.login }}"
           echo "Event is:  ${{ github.event_name }}"
+          echo "Owner accepted :  ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.owner.login in ['itsmesamster', 'marcmo', 'DmitryAstafyev', 'kruss', 'AmmarAbouZor'] }}"
           ls -la /chipmunk/chipmunk_performance_results
   push_data_to_chipmunk_docs:
     name: Move benchmark data to chipmunk-docs repository
