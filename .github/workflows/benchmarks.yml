@@ -48,9 +48,9 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           export PATH="/root/.cargo/bin:$PATH"
           source ~/.bashrc
-          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -eq 0 ]]; then
+          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -le 10 ]]; then
             echo "Running manually"
-            ruby scripts/benchmarks/process.rb 1
+            ruby scripts/benchmarks/process.rb ${{ github.event.inputs.pr_id }}
           elif [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" =~ ^[0-9]+$ ]]; then
             ruby scripts/benchmarks/process.rb PR~${{ github.event.inputs.pr_id }}
           elif [[ "${{ github.event_name }}" != 'workflow_dispatch' ]]; then
@@ -78,7 +78,7 @@ jobs:
           git config user.name "esrlabs"
           git config user.email "esrlabs@gmail.com"
           git remote set-url origin "https://esrlabs:${{secrets.DOCS_PUSH_TOKEN}}@github.com/esrlabs/chipmunk-docs"
-          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -ne 0 ]]; then
+          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -gt 10 ]]; then
             cp /chipmunk/chipmunk_performance_results/Benchmark_PR_${{ github.event.inputs.pr_id }}.json ./jekyll/benchmarks/data/pull_request/
             git add ./jekyll/benchmarks/data/pull_request/Benchmark_PR_${{ github.event.inputs.pr_id }}.json
             git commit -m "Adding PR benchmark results for chipmunk PR #${{ github.event.inputs.pr_id }}"

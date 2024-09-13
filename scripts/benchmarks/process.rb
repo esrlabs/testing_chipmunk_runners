@@ -76,7 +76,7 @@ end
 def clone_and_setup_repo(branch_or_tag_name, temp_dir)
   system("git clone --depth 1 --branch #{branch_or_tag_name} https://github.com/#{ENV['REPO_OWNER']}/#{ENV['REPO_NAME']}.git #{temp_dir}")
   FileUtils.cp_r("#{SHELL_SCRIPT_PATH}/.", "#{temp_dir}/#{SHELL_SCRIPT_PATH}/.", verbose: true)
-  FileUtils.cp_r("cli", "#{temp_dir}/", verbose: true)
+  FileUtils.cp_r("scripts/elements/bindings.rb", "#{temp_dir}/scripts/elements/bindings.rb", verbose: true)
 end
 
 def process_release_or_pr(branch_or_tag_name, identifier, env_vars)
@@ -90,21 +90,15 @@ def process_release_or_pr(branch_or_tag_name, identifier, env_vars)
         ENV['PERFORMANCE_RESULTS'] = "Benchmark_#{identifier}.json"
         system("corepack enable")
         system("yarn cache clean")
-        system(COMMANDS[0])
 
         next unless File.exist?("#{SHELL_SCRIPT_PATH}/#{env_vars['JASMIN_TEST_CONFIGURATION'].gsub('./spec/', '')}")
 
         puts "Benchmark.json file available."
 
         FileUtils.rm(result_path, verbose: true) if File.exist?(result_path)
-        iterations = 6
-        for i in 1..iterations do
-          puts "Running #{COMMANDS[1]} for #{identifier} - iteration #{i}"
-          begin
-            system(COMMANDS[1])
-          rescue
-            next
-          end
+        COMMANDS.each do |command|
+          puts "Running #{command} for #{identifier}"
+          system(command)
         end
       end
 
