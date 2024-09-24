@@ -60,31 +60,31 @@ jobs:
       - name: List files in the results folder
         run: ls -la /chipmunk/chipmunk_performance_results
 
-  push_data_to_chipmunk_docs:
-    name: Move benchmark data to chipmunk-docs repository
-    needs: invoke_jasmine_tests
-    runs-on: self-hosted-runner-ubuntu
-    steps:
-      - name: Checkout chipmunk-docs repository
-        uses: actions/checkout@v2
-        with:
-          repository: esrlabs/chipmunk-docs
-          path: './chipmunk-docs'
-          token: ${{ secrets.DOCS_PUSH_TOKEN }}
+  # push_data_to_chipmunk_docs:
+  #   name: Move benchmark data to chipmunk-docs repository
+  #   needs: invoke_jasmine_tests
+  #   runs-on: self-hosted-runner-ubuntu
+  #   steps:
+  #     - name: Checkout chipmunk-docs repository
+  #       uses: actions/checkout@v2
+  #       with:
+  #         repository: esrlabs/chipmunk-docs
+  #         path: './chipmunk-docs'
+  #         token: ${{ secrets.DOCS_PUSH_TOKEN }}
 
-      - name: Push benchmark data
-        working-directory: ./chipmunk-docs
-        run: |
-          git config user.name "esrlabs"
-          git config user.email "esrlabs@gmail.com"
-          git remote set-url origin "https://esrlabs:${{secrets.DOCS_PUSH_TOKEN}}@github.com/esrlabs/chipmunk-docs"
-          if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -ne 0 ]]; then
-            cp /chipmunk/chipmunk_performance_results/Benchmark_PR_${{ github.event.inputs.pr_id }}.json ./jekyll/benchmarks/data/pull_request/
-            git add ./jekyll/benchmarks/data/pull_request/Benchmark_PR_${{ github.event.inputs.pr_id }}.json
-            git commit -m "Adding PR benchmark results for chipmunk PR #${{ github.event.inputs.pr_id }}"
-          else
-            cp /chipmunk/chipmunk_performance_results/data.json ./jekyll/benchmarks/data/data.json
-            git add ./jekyll/benchmarks/data/data.json
-            git commit -m "Updating data.json for latest tag"
-          fi
-          git push origin master
+  #     - name: Push benchmark data
+  #       working-directory: ./chipmunk-docs
+  #       run: |
+  #         git config user.name "esrlabs"
+  #         git config user.email "esrlabs@gmail.com"
+  #         git remote set-url origin "https://esrlabs:${{secrets.DOCS_PUSH_TOKEN}}@github.com/esrlabs/chipmunk-docs"
+  #         if [[ "${{ github.event_name }}" == 'workflow_dispatch' && "${{ github.event.inputs.pr_id }}" -ne 0 ]]; then
+  #           cp /chipmunk/chipmunk_performance_results/Benchmark_PR_${{ github.event.inputs.pr_id }}.json ./jekyll/benchmarks/data/pull_request/
+  #           git add ./jekyll/benchmarks/data/pull_request/Benchmark_PR_${{ github.event.inputs.pr_id }}.json
+  #           git commit -m "Adding PR benchmark results for chipmunk PR #${{ github.event.inputs.pr_id }}"
+  #         else
+  #           cp /chipmunk/chipmunk_performance_results/data.json ./jekyll/benchmarks/data/data.json
+  #           git add ./jekyll/benchmarks/data/data.json
+  #           git commit -m "Updating data.json for latest tag"
+  #         fi
+  #         git push origin master
