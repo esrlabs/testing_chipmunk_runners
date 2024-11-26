@@ -65,51 +65,51 @@ jobs:
         run: |
           corepack enable
           yarn cache clean
-      - name: setup keychain for signing and notarising
-        if: runner.os == 'macOS'
-        env:
-          KEYCHAIN_NAME: "build.keychain"
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
-        run: |
-          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-          security default-keychain -s "$KEYCHAIN_NAME"
-          certfile="${HOME}/buildcert.p12"
-          echo "$CSC_LINK" | base64 -d > "$certfile"
-          security import \
-            "$certfile" \
-            -P "$CSC_KEY_PASSWORD" \
-            -A \
-            -k "$KEYCHAIN_NAME"
-          rm "$certfile"
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PWD" \
-            "$KEYCHAIN_NAME"
-          security set-keychain-settings -lut 1200
-      - name: build release macOS
-        if: runner.os == 'macOS'
-        run: |
-          cargo chipmunk release -c cli/config/codesign_macos.toml
-        env:
-          KEYCHAIN_NAME: "build.keychain-db"
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLEID: ${{ secrets.APPLEID }}
-          APPLEIDPASS: ${{ secrets.APPLEIDPASS }}
-          TEAMID: ${{ secrets.TEAMID }}
-          SIGNING_ID: ${{ secrets.SIGNING_ID }}
-          KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: build release
-        if: runner.os != 'macOS'
-        run: |
-          cargo chipmunk release
-      - name: list release files
-        working-directory: ./application/holder/release
-        run: ls
+      # - name: setup keychain for signing and notarising
+      #   if: runner.os == 'macOS'
+      #   env:
+      #     KEYCHAIN_NAME: "build.keychain"
+      #     CSC_LINK: ${{ secrets.CSC_LINK }}
+      #     CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      #     KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
+      #   run: |
+      #     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+      #     security default-keychain -s "$KEYCHAIN_NAME"
+      #     certfile="${HOME}/buildcert.p12"
+      #     echo "$CSC_LINK" | base64 -d > "$certfile"
+      #     security import \
+      #       "$certfile" \
+      #       -P "$CSC_KEY_PASSWORD" \
+      #       -A \
+      #       -k "$KEYCHAIN_NAME"
+      #     rm "$certfile"
+      #     security set-key-partition-list \
+      #       -S apple-tool:,apple:,codesign: \
+      #       -s \
+      #       -k "$KEYCHAIN_PWD" \
+      #       "$KEYCHAIN_NAME"
+      #     security set-keychain-settings -lut 1200
+      # - name: build release macOS
+      #   if: runner.os == 'macOS'
+      #   run: |
+      #     cargo chipmunk release -c cli/config/codesign_macos.toml
+      #   env:
+      #     KEYCHAIN_NAME: "build.keychain"
+      #     CSC_LINK: ${{ secrets.CSC_LINK }}
+      #     CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      #     APPLEID: ${{ secrets.APPLEID }}
+      #     APPLEIDPASS: ${{ secrets.APPLEIDPASS }}
+      #     TEAMID: ${{ secrets.TEAMID }}
+      #     SIGNING_ID: ${{ secrets.SIGNING_ID }}
+      #     KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: build release
+      #   if: runner.os != 'macOS'
+      #   run: |
+      #     cargo chipmunk release
+      # - name: list release files
+      #   working-directory: ./application/holder/release
+      #   run: ls
       # - name: upload files
       #   if: startsWith(github.ref, 'refs/tags/')
       #   uses: AButler/upload-release-assets@v2.0
