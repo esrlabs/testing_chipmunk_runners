@@ -154,6 +154,7 @@ def update_performance_data(data, data_file_path)
 end
 
 arg = ARGV[0] || usage
+puts "Arguments = #{ARGV}"
 parsed_arg = parse_arguments(arg)
 env_vars = set_environment_vars
 
@@ -167,7 +168,7 @@ when :pr
   puts "Running benchmarks for the pull request: #{pull_request.title} (#{branch_name})"
   process_release_or_pr(branch_name, "PR_#{pr_number}", env_vars)
 when :number_of_releases
-  releases = fetch_releases(client).take(parsed_arg[:value])
+  releases = fetch_releases(client).take(parsed_arg[:value]) rescue 1
   puts "Running benchmarks for the last #{parsed_arg[:value]} release/s"
   releases.each { |release| process_release_or_pr(release.tag_name, release.tag_name, env_vars) }
 when :range
