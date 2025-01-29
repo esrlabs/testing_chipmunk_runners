@@ -148,6 +148,7 @@ def update_performance_data(data, data_file_path)
   test_data = test_data.to_json
   File.open(data_file_path, "a") do |f|
     f.write(test_data)
+    f.write("\n")  # Ensure newline at end of file
   end
   puts "Data written to #{data_file_path}\n#{test_data}"
   puts "Benchmark data created successfully!"
