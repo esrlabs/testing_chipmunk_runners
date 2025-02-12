@@ -124,7 +124,6 @@ end
 
 def read_benchmark_data(file_path)
   data = JSON.parse(File.read(file_path))
-  puts "data in #{file_path} is \n#{data}"
   { file_name: File.basename(file_path), data: data }
 end
 
