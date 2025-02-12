@@ -1,9 +1,7 @@
 name: LintMaster
 
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   rust_and_ts_lint:
