@@ -6,8 +6,9 @@ require 'json'
 ENV['REPO_OWNER'] = 'esrlabs'
 ENV['REPO_NAME'] = 'chipmunk'
 
+path = Dir.exist?('cli/development-cli') ? 'cli/development-cli' : 'cli'
 COMMANDS = [
-  'cargo install --path=cli/development-cli',
+  "cargo install --path=#{path}",
   'cargo chipmunk test wrapper -p -s spec/build/spec/_session.benchmark.spec.js -u print'
 ]
 
