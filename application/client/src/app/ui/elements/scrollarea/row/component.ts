@@ -8,6 +8,7 @@ import {
     HostBinding,
     ChangeDetectionStrategy,
     SkipSelf,
+    OnDestroy,
 } from '@angular/core';
 import { Owner, Row } from '@schema/content/row';
 import { Ilc, IlcInterface } from '@env/decorators/component';
@@ -31,7 +32,10 @@ import * as dom from '@ui/env/dom';
     standalone: false,
 })
 @Ilc()
-export class RowComponent extends ChangesDetector implements AfterContentInit, AfterViewInit {
+export class RowComponent
+    extends ChangesDetector
+    implements AfterContentInit, AfterViewInit, OnDestroy
+{
     protected hash!: string;
 
     @Input() public row!: Row;
@@ -369,6 +373,10 @@ export class RowComponent extends ChangesDetector implements AfterContentInit, A
         super([selfCdRef, cdRef]);
     }
 
+    public ngOnDestroy(): void {
+        this.row.destroy();
+    }
+
     public ngAfterContentInit(): void {
         this.render = this.row.session.render.delimiter() === undefined ? 1 : 2;
         this.selecting.setDelimiter(this.row.session.render.delimiter());
@@ -384,6 +392,7 @@ export class RowComponent extends ChangesDetector implements AfterContentInit, A
                 this.bookmarked = this.row.bookmark().is();
                 this.update();
             }),
+            this.row.session.indexed.subjects.get().changed.subscribe(this.update.bind(this)),
             this.row.session.cursor.subjects.get().updated.subscribe(this.update.bind(this)),
             this.row.session.cursor.subjects.get().selected.subscribe(this.update.bind(this)),
             this.row.change.subscribe(() => {
@@ -449,7 +458,6 @@ export class RowComponent extends ChangesDetector implements AfterContentInit, A
             }.${this.source.color}`;
         };
         const prev = this.hash;
-        this.hash = hash();
         this.bookmarked = this.row.bookmark().is();
         if (this.row.session.stream.observe().descriptions.count() > 1) {
             this.source.color = getSourceColor(this.row.source);
@@ -471,6 +479,7 @@ export class RowComponent extends ChangesDetector implements AfterContentInit, A
         } else {
             this.attachment = undefined;
         }
+        this.hash = hash();
         if (prev !== this.hash) {
             this.detectChanges();
         }
