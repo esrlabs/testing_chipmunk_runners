@@ -167,6 +167,7 @@ def update_performance_data(new_data, data_file_path)
 end
 
 arg = ARGV[0] || usage
+puts "Arguments = #{ARGV}"
 parsed_arg = parse_arguments(arg)
 env_vars = set_environment_vars
 
